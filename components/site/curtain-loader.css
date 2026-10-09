@@ -1,0 +1,170 @@
+/* Opening curtain (curtain-loader.tsx). Global CSS, not a CSS module: the Turbopack
+   Tailwind rule for *.css in next.config.ts would otherwise swallow .module.css files. */
+/* Opening curtain. Lift visuals are driven by <html data-curtain="open"> so the inline-script failsafe works without React. */
+.curtain-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  color: var(--color-text-on-brand);
+}
+html[data-curtain="open"] .curtain-root {
+  pointer-events: none;
+}
+
+.curtain-curtain {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 0;
+  background-color: var(--color-bg-danger);
+  background-image:
+    linear-gradient(115deg, transparent 30%, color-mix(in srgb, var(--color-text-on-brand) 12%, transparent) 46%, transparent 62%),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-border-default) 40%, transparent), transparent 28%, transparent 68%, color-mix(in srgb, var(--color-border-default) 45%, transparent)),
+    repeating-linear-gradient(
+      90deg,
+      var(--color-bg-danger-strong) 0,
+      var(--color-bg-danger) 30px,
+      color-mix(in srgb, var(--color-bg-danger), var(--color-text-on-brand) 14%) 50px,
+      var(--color-bg-danger) 72px,
+      var(--color-bg-danger-strong) 96px
+    );
+}
+html[data-curtain="open"] .curtain-curtain {
+  transform: translateY(calc(-100% - 96px)) scaleX(0.985); /* clear the 72px swags hanging below */
+  transition: transform 1400ms cubic-bezier(0.76, 0, 0.24, 1);
+  will-change: transform;
+}
+
+/* Straight hem + fringe on the visible bottom edge (closed state). */
+.curtain-curtain::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 14px;
+  border-top: 2px solid var(--color-border-default);
+  background: repeating-linear-gradient(90deg, var(--color-bg-accent) 0 3px, transparent 3px 8px) bottom / 100% 10px no-repeat,
+    var(--color-bg-danger-strong);
+}
+
+.curtain-valance {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+.curtain-trim {
+  height: 6px;
+  background: var(--color-bg-accent);
+  border-bottom: 2px solid var(--color-border-default);
+}
+.curtain-scallop {
+  display: block;
+  fill: var(--color-bg-danger);
+  stroke: var(--color-border-default);
+}
+.curtain-desktop { display: none; }
+@media (min-width: 1024px) {
+  .curtain-mobile { display: none; }
+  .curtain-desktop { display: block; }
+}
+
+/* Swags hang below the panel; scaleY .15 -> 1 as it is hoisted. */
+.curtain-hem {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 0;
+  width: 100%;
+  height: 72px;
+  transform: scaleY(0.15);
+  transform-origin: 50% 0;
+  fill: var(--color-bg-danger);
+  stroke: var(--color-border-default);
+  pointer-events: none;
+}
+.curtain-fringe { fill: none; stroke: var(--color-bg-accent); stroke-dasharray: 3 6; }
+html[data-curtain="open"] .curtain-hem {
+  transform: scaleY(1);
+  transition: transform 1400ms cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+.curtain-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 16px;
+  text-align: center;
+}
+html[data-curtain="open"] .curtain-content {
+  animation: curtain-out 300ms ease-in both;
+}
+.curtain-logo {
+  width: 160px;
+  height: auto;
+  animation: curtain-pop 500ms var(--ease-spring) both;
+}
+.curtain-label { color: var(--color-bg-accent); animation: curtain-rise 500ms var(--ease-out-soft) 450ms both; }
+.curtain-msg { color: var(--color-text-on-brand); animation: curtain-rise 500ms var(--ease-out-soft) 650ms both; }
+.curtain-bulbs { display: flex; gap: 10px; margin-top: 8px; animation: curtain-rise 500ms var(--ease-out-soft) 850ms both; }
+.curtain-bulb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border-default);
+  border-radius: 50%;
+  background: var(--color-bg-accent);
+  box-shadow: 0 0 10px var(--color-bg-accent);
+  animation: curtain-twinkle 900ms ease-in-out infinite;
+}
+@media (min-width: 1024px) {
+  .curtain-logo { width: 260px; }
+}
+
+.curtain-spot {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 70% 65% at 50% 0, color-mix(in srgb, var(--color-bg-accent-soft) 55%, transparent), transparent 75%);
+}
+html[data-curtain="open"] .curtain-spot {
+  animation: curtain-spot 1800ms ease-out both;
+}
+
+.curtain-skip {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 2px solid var(--color-text-on-brand);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-on-brand);
+  cursor: pointer;
+  transition: background-color 150ms, opacity 150ms;
+}
+.curtain-skip:hover { background: color-mix(in srgb, var(--color-text-on-brand) 18%, transparent); }
+.curtain-skip:active { background: color-mix(in srgb, var(--color-text-on-brand) 30%, transparent); }
+.curtain-skip:focus-visible { outline: 3px solid var(--color-bg-accent); outline-offset: 3px; }
+html[data-curtain="open"] .curtain-skip { opacity: 0; pointer-events: none; }
+
+@keyframes curtain-pop { from { opacity: 0; transform: scale(0.8); } }
+@keyframes curtain-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes curtain-out { to { opacity: 0; transform: translateY(-12px); } }
+@keyframes curtain-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes curtain-spot { 0% { opacity: 0; } 35% { opacity: 0.8; } 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-curtain="open"] .curtain-curtain {
+    transform: none !important;
+    opacity: 0;
+    transition: opacity 300ms linear !important;
+    will-change: auto;
+  }
+  html[data-curtain="open"] .curtain-hem { transform: scaleY(0.15) !important; transition: none !important; }
+  html[data-curtain="open"] .curtain-spot { animation: none !important; }
+  .curtain-bulb { animation: none !important; }
+}

@@ -1,26 +1,228 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Design tokens — 1:1 with the Figma variables on page "website"
+ * (collections AKM Color / AKM Dimension, effect + text styles).
+ * Utility names follow the Figma code syntax: --color-bg-brand → bg-bg-brand,
+ * --color-text-primary → text-text-primary, --color-border-default → border-border-default.
+ * Spacing uses Tailwind's default 4px scale, which matches space/4…128 (p-4 = space/16).
+ */
+@theme {
+  /* Brand (Variable collection: Hijau, Kuning, Merah, Item, Abu) */
+  --color-hijau: #007c38;
+  --color-kuning: #faf015;
+  --color-merah: #c10000;
+  --color-item: #404040;
+  --color-abu: #dcdcdc;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* color/bg/* */
+  --color-bg-page: #f7f5ee;
+  --color-bg-surface: #ffffff;
+  --color-bg-muted: #f2f2f2;
+  --color-bg-brand: #007c38;
+  --color-bg-brand-strong: #005a28;
+  --color-bg-brand-soft: #e5f2ea;
+  --color-bg-accent: #faf015;
+  --color-bg-accent-strong: #e6dc00;
+  --color-bg-accent-soft: #fffbc2;
+  --color-bg-danger: #c10000;
+  --color-bg-danger-strong: #8f0000;
+  --color-bg-danger-soft: #fce8e8;
+  --color-bg-disabled: #dcdcdc;
+  --color-bg-inverse: #141414;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* color/text/* */
+  --color-text-primary: #404040;
+  --color-text-strong: #141414;
+  --color-text-secondary: #707070;
+  --color-text-brand: #007c38;
+  --color-text-accent: #faf015;
+  --color-text-danger: #c10000;
+  --color-text-on-brand: #ffffff;
+  --color-text-on-accent: #007c38;
+  --color-text-disabled: #707070;
+
+  /* color/border/* */
+  --color-border-default: #404040;
+  --color-border-subtle: #dcdcdc;
+  --color-border-brand: #007c38;
+  --color-border-focus: #007c38;
+  --color-border-danger: #c10000;
+  --color-border-accent: #faf015;
+
+  /* color/seat/* (hand-drawn plan colours) */
+  --color-seat-tipe1: #8fd9a8;
+  --color-seat-tipe2: #8ec5f5;
+  --color-seat-tipe3: #f59fc4;
+  --color-seat-tipe4: #c3a6f2;
+  --color-seat-vip: #fff27a;
+  --color-seat-selected: #007c38;
+  --color-seat-taken: #707070;
+  --color-seat-stage: #f4a3a3;
+
+  /* radius/* */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 32px;
+
+  /* Effect styles */
+  --shadow-sticker: 4px 4px 0 0 #404040;
+  --shadow-sticker-l: 8px 8px 0 0 #404040;
+  --shadow-sticker-s: 2px 2px 0 0 #404040;
+  --shadow-soft: 0 8px 24px 0 rgb(0 0 0 / 0.12);
+
+  /* Fonts: Kirang Haerang (heading), Bootzy TM → Plus Jakarta Sans 600 until Bootzy is supplied */
+  --font-heading: var(--font-kirang), "Kirang Haerang", cursive;
+  --font-body: var(--font-bootzy, var(--font-jakarta)), system-ui, sans-serif;
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 400ms;
+  --duration-enter: 600ms;
+
+  --animate-enter: enter var(--duration-enter) var(--ease-out-soft) both;
+  --animate-enter-scale: enter-scale 700ms var(--ease-out-soft) both;
+  --animate-pop: pop 500ms var(--ease-spring) both;
+  --animate-stamp: stamp 450ms var(--ease-out-soft) both;
+  --animate-twinkle: twinkle 2.4s ease-in-out infinite;
+  --animate-float: float 10s ease-in-out infinite;
+  --animate-slide-down: slide-down var(--duration-base) var(--ease-out-soft) both;
+
+  @keyframes enter {
+    from { opacity: 0; translate: 0 12px; }
+  }
+  @keyframes enter-scale {
+    from { opacity: 0; scale: 0.96; }
+  }
+  @keyframes pop {
+    from { opacity: 0; scale: 0.6; }
+  }
+  /* "Stamped": drops in large, lands with a short press. Rotation stays on the element itself. */
+  @keyframes stamp {
+    0% { opacity: 0; scale: 1.5; }
+    70% { opacity: 1; scale: 0.96; }
+    100% { opacity: 1; scale: 1; }
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+  @keyframes float {
+    0%, 100% { translate: 0 0; rotate: 0deg; }
+    50% { translate: 0 -8px; rotate: 8deg; }
+  }
+  @keyframes slide-down {
+    from { opacity: 0; translate: 0 -6px; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Text styles (Figma: Display/*, Heading/*, Body/*, Label/*, Caption) */
+@utility type-display-xl { font-family: var(--font-heading); font-size: 112px; line-height: 104px; }
+@utility type-display-l { font-family: var(--font-heading); font-size: 80px; line-height: 76px; }
+@utility type-h1 { font-family: var(--font-heading); font-size: 56px; line-height: 56px; }
+@utility type-h2 { font-family: var(--font-heading); font-size: 40px; line-height: 44px; }
+@utility type-h3 { font-family: var(--font-heading); font-size: 28px; line-height: 32px; }
+@utility type-h4 { font-family: var(--font-heading); font-size: 22px; line-height: 26px; }
+@utility type-body-l { font-family: var(--font-body); font-weight: 600; font-size: 18px; line-height: 28px; letter-spacing: 0.03em; }
+@utility type-body-m { font-family: var(--font-body); font-weight: 600; font-size: 16px; line-height: 24px; letter-spacing: 0.03em; }
+@utility type-body-s { font-family: var(--font-body); font-weight: 600; font-size: 14px; line-height: 20px; letter-spacing: 0.03em; }
+@utility type-label-button { font-family: var(--font-body); font-weight: 600; font-size: 16px; line-height: 20px; letter-spacing: 0.03em; }
+@utility type-label { font-family: var(--font-body); font-weight: 600; font-size: 14px; line-height: 18px; letter-spacing: 0.03em; }
+@utility type-caption { font-family: var(--font-body); font-weight: 600; font-size: 12px; line-height: 16px; letter-spacing: 0.03em; }
+
+/*
+ * Texture/Paper — two layers of SVG noise (fine fibres + soft mottling) over the background colour.
+ * Used on cream/white surfaces only; green and dark sections stay flat.
+ * ponytail: generated noise; swap for url(/paper.webp) if a scanned paper texture is supplied.
+ */
+@utility bg-paper {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.22 0.55 0 0 0 -0.22'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.25 0.35 0 0 0 -0.12'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+  background-size: 220px 220px, 600px 600px;
+}
+
+/* Scroll reveal: native scroll-driven animation, no JS. Browsers without support show content statically. */
+@utility reveal {
+  @supports (animation-timeline: view()) {
+    animation: enter linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 28%;
+  }
+}
+
+/*
+ * Opening curtain (components/site/curtain-loader.tsx). <html data-curtain> is set before first paint
+ * by the inline script in app/layout.tsx: "closed" → "open" (lifting) or "skip" (seen this session).
+ * While closed: lock scroll and hold entrance animations so the hero plays as the curtain rises.
+ */
+html[data-curtain="closed"] {
+  overflow: hidden;
+}
+html[data-curtain="closed"] :is(.animate-enter, .animate-enter-scale, .animate-pop, .animate-stamp, .animate-slide-down) {
+  animation-play-state: paused;
+}
+html[data-curtain="skip"] .akm-curtain {
+  display: none;
+}
+
+/* Page transitions (React <ViewTransition default="page"> in app/layout.tsx); navbar stays put. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(.page) {
+  animation: page-out 180ms var(--ease-out-soft) both;
+}
+::view-transition-new(.page) {
+  animation: page-in 360ms var(--ease-out-soft) 60ms both;
+}
+@keyframes page-out {
+  to { opacity: 0; translate: 0 -6px; }
+}
+@keyframes page-in {
+  from { opacity: 0; translate: 0 10px; }
+}
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+@layer base {
+  html {
+    background: var(--color-bg-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+  /* Focus/Ring: white gap + green ring */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid var(--color-border-focus);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      animation-timeline: auto !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    ::view-transition-old(*), ::view-transition-new(*), ::view-transition-group(*) {
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+    }
+  }
 }
