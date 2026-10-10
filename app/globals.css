@@ -14,6 +14,8 @@
   --color-merah: #c10000;
   --color-item: #404040;
   --color-abu: #dcdcdc;
+  --color-cork: #b98152;
+  --color-cork-dark: #8a5a33;
 
   /* color/bg/* */
   --color-bg-page: #f7f5ee;
@@ -50,12 +52,12 @@
   --color-border-danger: #c10000;
   --color-border-accent: #faf015;
 
-  /* color/seat/* (hand-drawn plan colours) */
-  --color-seat-tipe1: #8fd9a8;
-  --color-seat-tipe2: #8ec5f5;
-  --color-seat-tipe3: #f59fc4;
-  --color-seat-tipe4: #c3a6f2;
-  --color-seat-vip: #fff27a;
+  /* color/seat/* (committee ticket colours: Platinum ungu, Gold kuning, Silver biru, Bronze orange) */
+  --color-seat-platinum: #a98ae6; /* darker than Silver's blue so they separate under red-green colour blindness */
+  --color-seat-gold: #fff27a;
+  --color-seat-silver: #8ec5f5;
+  --color-seat-bronze: #f7b77a;
+  --color-seat-vip: #dcdcdc; /* not sold: neutral so it never reads as Gold */
   --color-seat-selected: #007c38;
   --color-seat-taken: #707070;
   --color-seat-stage: #f4a3a3;
@@ -79,6 +81,7 @@
   /* Motion */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 150ms;
   --duration-base: 250ms;
   --duration-slow: 400ms;
@@ -91,6 +94,7 @@
   --animate-twinkle: twinkle 2.4s ease-in-out infinite;
   --animate-float: float 10s ease-in-out infinite;
   --animate-slide-down: slide-down var(--duration-base) var(--ease-out-soft) both;
+  --animate-wiggle: wiggle 300ms var(--ease-out-soft);
 
   @keyframes enter {
     from { opacity: 0; translate: 0 12px; }
@@ -117,6 +121,9 @@
   }
   @keyframes slide-down {
     from { opacity: 0; translate: 0 -6px; }
+  }
+  @keyframes wiggle {
+    50% { rotate: 2deg; }
   }
 }
 
@@ -146,13 +153,148 @@
   background-size: 220px 220px, 600px 600px;
 }
 
-/* Scroll reveal: native scroll-driven animation, no JS. Browsers without support show content statically. */
-@utility reveal {
-  @supports (animation-timeline: view()) {
-    animation: enter linear both;
-    animation-timeline: view();
-    animation-range: entry 0% cover 28%;
-  }
+/* Hero: white graph paper on green (120px major / 24px minor lines). Pair with a vignette layer. */
+@utility bg-graph {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.16) 1px, transparent 1px),
+    linear-gradient(rgb(255 255 255 / 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.1) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+}
+
+/* Tentang: corkboard (dot speckle + top light). Pair with a bg-grain overlay. */
+@utility bg-cork {
+  background-color: var(--color-cork);
+  background-image:
+    radial-gradient(rgb(60 30 10 / 0.28) 1px, transparent 1.6px),
+    radial-gradient(rgb(255 225 175 / 0.28) 1px, transparent 1.6px),
+    radial-gradient(ellipse at 50% 0%, rgb(255 235 200 / 0.25), transparent 70%);
+  background-size: 7px 7px, 11px 11px, 100% 100%;
+  background-position: 0 0, 4px 5px, 0 0;
+}
+
+/* Marker scribbles (still-stayed.tsx) draw once when their [data-reveal] ancestor gets [data-inview]; drawn without JS / with reduced motion. */
+.mk path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 700ms var(--ease-out-soft) var(--d, 0ms);
+}
+html.js [data-reveal]:not([data-inview]) .mk path {
+  stroke-dashoffset: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal] .mk path { stroke-dashoffset: 0; }
+}
+
+/* Ticket barcode stripes (show-card.tsx) */
+@utility bg-barcode {
+  background-image: repeating-linear-gradient(90deg, #141414 0 2px, transparent 2px 5px, #141414 5px 9px, transparent 9px 11px, #141414 11px 12px, transparent 12px 16px);
+}
+
+/* Hero: static film grain overlay. Never animated. */
+/* Crumpled paper: lit low-frequency noise, blended over the base colour (folds + creases). Static tile.
+ * Light colour #a6a6a6 centres the lit surface on 50% grey, so overlay darkens AND lightens instead of
+ * washing the green out (white text on the hero needs to stay ≥4.5:1). */
+@utility bg-crumple {
+  mix-blend-mode: overlay;
+  opacity: 0.9;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.007' numOctaves='6' seed='7' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23a6a6a6' surfaceScale='9'%3E%3CfeDistantLight azimuth='225' elevation='50'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
+  background-size: 640px 640px;
+}
+/* Print halftone dots, faded in from two corners. */
+@utility bg-halftone {
+  background-image: radial-gradient(rgb(0 0 0 / 0.3) 1.6px, transparent 2px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(circle at 100% 0%, #000, transparent 38%), radial-gradient(circle at 0% 100%, #000, transparent 34%);
+}
+@utility bg-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* White focus ring for CTAs sitting on the hero's green. */
+.hero-cta :is(a, button):focus-visible {
+  outline-color: #fff;
+}
+
+/*
+ * Reveal v2 — triggered once by components/site/reveal-observer.tsx (IntersectionObserver), not scrubbed by scroll.
+ * Hidden states only apply under html.js (set by the inline head script), so content stays visible without JS.
+ *   data-reveal="up|fade|scale|clip|left|right|text"   on an element, or
+ *   data-reveal-stagger + data-reveal="…"              on a parent → its children reveal one after another (--i).
+ * --d adds a manual delay. Once data-revealed is set (after the entrance) these rules stop applying, so each
+ * component's own hover/focus transitions take over again.
+ */
+html.js :is([data-reveal]:not([data-reveal-stagger], [data-reveal="text"], [data-revealed]), [data-reveal-stagger]:not([data-revealed]) > *) {
+  transition-property: opacity, translate, scale, clip-path;
+  transition-duration: var(--rd, 900ms);
+  transition-timing-function: var(--ease-expo);
+  transition-delay: calc(var(--d, 0ms) + var(--i, 0) * 75ms);
+}
+/* Stagger index by position, capped at 6. Pure CSS so nothing edits the DOM before React hydrates. */
+[data-reveal-stagger] > :nth-child(2) { --i: 1; }
+[data-reveal-stagger] > :nth-child(3) { --i: 2; }
+[data-reveal-stagger] > :nth-child(4) { --i: 3; }
+[data-reveal-stagger] > :nth-child(5) { --i: 4; }
+[data-reveal-stagger] > :nth-child(6) { --i: 5; }
+[data-reveal-stagger] > :nth-child(n + 7) { --i: 6; }
+/* hidden states (default "up") */
+html.js :is([data-reveal]:not([data-inview], [data-reveal-stagger], [data-reveal="text"]), [data-reveal-stagger]:not([data-inview]) > *) {
+  opacity: 0;
+  translate: 0 32px;
+}
+html.js :is([data-reveal="fade"]:not([data-inview], [data-reveal-stagger]), [data-reveal-stagger][data-reveal="fade"]:not([data-inview]) > *) {
+  translate: none;
+}
+html.js :is([data-reveal="scale"]:not([data-inview], [data-reveal-stagger]), [data-reveal-stagger][data-reveal="scale"]:not([data-inview]) > *) {
+  translate: 0 16px;
+  scale: 0.94;
+}
+html.js :is([data-reveal="clip"]:not([data-inview], [data-reveal-stagger]), [data-reveal-stagger][data-reveal="clip"]:not([data-inview]) > *) {
+  opacity: 1;
+  translate: 0 24px;
+  clip-path: inset(100% 0 0 0);
+}
+html.js :is([data-reveal="clip"], [data-reveal-stagger][data-reveal="clip"] > *) {
+  --rd: 1000ms;
+}
+html.js :is([data-reveal="left"]:not([data-inview], [data-reveal-stagger]), [data-reveal-stagger][data-reveal="left"]:not([data-inview]) > *) {
+  translate: -40px 0;
+}
+html.js :is([data-reveal="right"]:not([data-inview], [data-reveal-stagger]), [data-reveal-stagger][data-reveal="right"]:not([data-inview]) > *) {
+  translate: 40px 0;
+}
+/* Word-by-word heading (components/site/reveal-text.tsx). Padding keeps descenders out of the mask. */
+.rt-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding: 0.08em 0.02em 0.14em;
+  margin: -0.08em -0.02em -0.14em;
+}
+.rt-inner {
+  display: inline-block;
+}
+html.js [data-reveal="text"] .rt-inner {
+  transition: translate 1000ms var(--ease-expo), opacity 1000ms var(--ease-expo);
+  transition-delay: calc(var(--d, 0ms) + var(--wi, 0) * 60ms);
+}
+html.js [data-reveal="text"]:not([data-inview]) .rt-inner {
+  translate: 0 110%;
+  opacity: 0;
+}
+
+/* Text selection: yellow highlighter with dark ink — readable on cream, green and dark sections. */
+::selection {
+  background-color: var(--color-bg-accent);
+  color: var(--color-text-strong);
 }
 
 /*

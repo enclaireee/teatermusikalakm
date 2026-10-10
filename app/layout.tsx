@@ -3,6 +3,7 @@ import { Kirang_Haerang } from "next/font/google";
 import localFont from "next/font/local";
 import { ViewTransition } from "react";
 import { CurtainLoader } from "@/components/site/curtain-loader";
+import { RevealObserver } from "@/components/site/reveal-observer";
 import "./globals.css";
 
 const kirang = Kirang_Haerang({ weight: "400", subsets: ["latin"], variable: "--font-kirang" });
@@ -16,9 +17,9 @@ export const metadata: Metadata = {
   icons: { icon: "/logo-akm.webp", apple: "/logo-akm.webp" },
 };
 
-// <html data-curtain>: "closed" (curtain down, set here before paint) → "open" (CurtainLoader lifts it)
+// Adds html.js (reveal hidden states only apply with JS). <html data-curtain>: "closed" (curtain down, set here before paint) → "open" (CurtainLoader lifts it)
 // or "skip" (already seen this session). The timeout is a failsafe in case React never hydrates.
-const CURTAIN_SCRIPT = `try{var d=document.documentElement;if(sessionStorage.getItem("akm-curtain")){d.dataset.curtain="skip"}else{d.dataset.curtain="closed";setTimeout(function(){if(d.dataset.curtain==="closed")d.dataset.curtain="open"},6000)}}catch(e){document.documentElement.dataset.curtain="skip"}`;
+const CURTAIN_SCRIPT = `document.documentElement.classList.add("js");try{var d=document.documentElement;if(sessionStorage.getItem("akm-curtain")){d.dataset.curtain="skip"}else{d.dataset.curtain="closed";setTimeout(function(){if(d.dataset.curtain==="closed")d.dataset.curtain="open"},6000)}}catch(e){document.documentElement.dataset.curtain="skip"}`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col bg-bg-page bg-paper text-text-primary">
         <CurtainLoader />
+        <RevealObserver />
         {/* Route changes are transitions, so this crossfades page content (see .page in globals.css). */}
         <ViewTransition default="page">{children}</ViewTransition>
       </body>

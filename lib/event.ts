@@ -15,8 +15,10 @@ export const CONTACT = {
   instagram: "@stage.ui",
   tiktok: "@stage.ui",
   email: "stagepromedui@gmail.com",
-  whatsapp: "0859-0001-8942",
-  whatsappName: "Hana",
+  persons: [
+    { name: "Danisa", phone: "0817250310", line: "@danisaarch" },
+    { name: "Panji", phone: "081382821069", line: "@panjizigi" },
+  ],
 } as const;
 
 export type ShowId = "1" | "2";
@@ -28,51 +30,25 @@ export const SHOWS: Record<ShowId, { id: ShowId; label: string; time: string; st
 
 export const isShowId = (v: string): v is ShowId => v === "1" || v === "2";
 
-export type Tier = "Tipe 1" | "Tipe 2" | "Tipe 3" | "Tipe 4" | "VIP";
+export type Tier = "Platinum" | "Gold" | "Silver" | "Bronze" | "VIP";
 
-// ponytail: prices are null until the committee confirms them; formatRupiah shows the placeholder.
-// VIP seats are invitation-only: no price is ever shown and they never count toward a total.
-export const TIERS: Record<Tier, { title: string; rows: string; price: number | null; invite?: true }> = {
-  "Tipe 1": { title: "Tengah depan", rows: "Baris A–D & G", price: null },
-  "Tipe 2": { title: "Tengah belakang", rows: "Baris H–O", price: null },
-  "Tipe 3": { title: "Sayap depan", rows: "Baris A–G kiri & kanan", price: null },
-  "Tipe 4": { title: "Sayap belakang", rows: "Baris H–O kiri & kanan", price: null },
-  VIP: { title: "Tamu undangan", rows: "Baris E–F tengah", price: null, invite: true },
+// Prices live in the database and come from /api/show/[show]; VIP seats are never sold.
+export const TIERS: Record<Tier, { title: string; rows: string }> = {
+  "Platinum": { title: "Tengah depan", rows: "Baris A–D & G" },
+  "Gold": { title: "Tengah belakang", rows: "Baris H–O" },
+  "Silver": { title: "Sayap depan", rows: "Baris A–G kiri & kanan" },
+  "Bronze": { title: "Sayap belakang", rows: "Baris H–O kiri & kanan" },
+  VIP: { title: "Tamu undangan", rows: "Baris E–F tengah" },
 };
 
-export const PRICE_PLACEHOLDER = "Rp XX.XXX";
+export const SALE_TIERS: Tier[] = ["Platinum", "Gold", "Silver", "Bronze"];
 export const MAX_TICKETS = 4;
 export const HOLD_MINUTES = 10;
-export const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+export const MAX_PROOF_BYTES = 3 * 1024 * 1024;
 export const PROOF_TYPES = ["image/jpeg", "image/png", "application/pdf"];
-// ponytail: mock invitation code; real validation moves to the backend phase.
-export const INVITE_CODE = "AKM-VIP-2026";
 
 export const BANK = { name: "Blu by BCA", account: "0024 2879 9648", holder: "Hana Dwi Lathifah" } as const;
 
 export function formatRupiah(amount: number | null): string {
-  if (amount === null) return PRICE_PLACEHOLDER;
-  return "Rp" + amount.toLocaleString("id-ID");
-}
-
-/** Price text for one seat of a tier, or null when no price is shown (VIP). */
-export function tierPriceLabel(tier: Tier): string | null {
-  return TIERS[tier].invite ? null : formatRupiah(TIERS[tier].price);
-}
-
-/** Sum of paid tier prices (VIP ignored); null if any paid price is still unknown. */
-export function totalPrice(tiers: Tier[]): number | null {
-  let sum = 0;
-  for (const t of tiers) {
-    if (TIERS[t].invite) continue;
-    const p = TIERS[t].price;
-    if (p === null) return null;
-    sum += p;
-  }
-  return sum;
-}
-
-/** Total text for an order: "—" when nothing in it is paid (e.g. VIP only). */
-export function totalLabel(tiers: Tier[]): string {
-  return tiers.some((t) => !TIERS[t].invite) ? formatRupiah(totalPrice(tiers)) : "—";
+  return amount === null ? "Rp —" : "Rp" + amount.toLocaleString("id-ID");
 }

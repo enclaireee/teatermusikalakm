@@ -17,7 +17,9 @@ const COLUMNS: { title: string; rows: [IconName, string, string?][] }[] = [
     rows: [
       ["instagram", `${CONTACT.instagram} (Instagram & TikTok)`, "https://instagram.com/stage.ui"],
       ["mail", CONTACT.email, `mailto:${CONTACT.email}`],
-      ["phone", `${CONTACT.whatsappName} · ${CONTACT.whatsapp}`, `https://wa.me/62${CONTACT.whatsapp.replace(/\D/g, "").slice(1)}`],
+      ...CONTACT.persons.map(
+        (p): [IconName, string, string] => ["phone", `${p.name} · ${p.phone} · Line ${p.line}`, `https://wa.me/62${p.phone.replace(/\D/g, "").slice(1)}`],
+      ),
     ],
   },
 ];
@@ -27,7 +29,7 @@ export function Footer() {
   return (
     <footer className="bg-bg-brand-strong text-text-on-brand">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-8 px-4 py-10 lg:gap-10 lg:px-20 lg:py-16">
-        <div className="flex flex-col gap-8 lg:flex-row lg:gap-20">
+        <div data-reveal-stagger data-reveal="up" className="flex flex-col gap-8 lg:flex-row lg:gap-20">
           <div className="flex flex-col gap-4 lg:w-[420px]">
             <Image src="/logo-akm.webp" alt="Aku, Kau & Musik" width={700} height={516} className="h-24 w-auto self-start" />
             <p className="type-body-s">
@@ -55,7 +57,7 @@ export function Footer() {
           ))}
         </div>
         <hr className="border-text-on-brand/30" />
-        <p className="type-caption text-center lg:text-left">© 2026 Stage UI · {EVENT.presentedBy}</p>
+        <p data-reveal="fade" className="type-caption text-center lg:text-left">© 2026 Stage UI · {EVENT.presentedBy}</p>
       </div>
     </footer>
   );

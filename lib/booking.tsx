@@ -1,27 +1,31 @@
 "use client";
 
 // Checkout state for one show, kept in sessionStorage so a refresh doesn't lose the order.
-// ponytail: browser-only mock; the backend phase replaces this with server-side orders + seat holds.
+// The order itself lives on the server (holdSeats / submitPayment); this is just the UI state between steps.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { ShowId } from "./event";
+import type { ShowId, Tier } from "./event";
 
 export type Buyer = { name: string; email: string; phone: string; org: string };
 export type PayMethod = "qris" | "transfer";
-export type Proof = { name: string; size: number; type: string };
 
 export type Booking = {
   buyer: Buyer | null; // set when step 1 (Data Diri) is submitted
+  tier: Tier | null; // one tier per order
+  tierName: string | null; // display name of the tier (e.g. "Platinum")
+  price: number | null; // unit price shown at selection time (display only)
   qty: number;
   seats: string[]; // seat ids, e.g. "C9"
-  vipUnlocked: boolean;
-  holdUntil: number | null; // epoch ms; set when entering payment
+  orderId: string | null; // server order, set by holdSeats
+  heldSeats: string[]; // seats held by that order (the API counts them as taken)
+  holdUntil: number | null; // epoch ms, from the server
+  priceChanged: boolean; // true when the server price differed from the one shown (e.g. presale ended)
+  total: number | null; // server total after the hold (authoritative)
   method: PayMethod;
-  proof: Proof | null;
   code: string | null; // booking code; set when proof is submitted
   paidAt: number | null;
 };
 
-const EMPTY: Booking = { buyer: null, qty: 2, seats: [], vipUnlocked: false, holdUntil: null, method: "qris", proof: null, code: null, paidAt: null };
+const EMPTY: Booking = { buyer: null, tier: null, tierName: null, price: null, qty: 2, seats: [], orderId: null, heldSeats: [], holdUntil: null, priceChanged: false, total: null, method: "qris", code: null, paidAt: null };
 
 type Ctx = {
   show: ShowId;
@@ -32,7 +36,7 @@ type Ctx = {
 };
 
 const BookingContext = createContext<Ctx | null>(null);
-const key = (show: ShowId) => `akm-booking-${show}`;
+const key = (show: ShowId) => `akm-booking-v4-${show}`;
 
 export function BookingProvider({ show, children }: { show: ShowId; children: React.ReactNode }) {
   const [booking, setBooking] = useState<Booking>(EMPTY);
@@ -70,16 +74,11 @@ export function useBooking(): Ctx {
   return ctx;
 }
 
-/** Furthest checkout step this booking may open (1 = Data Diri … 4 = Selesai). */
+/** Furthest checkout step this booking may open (1 = Pilih Tiket … 5 = Selesai). */
 export function allowedStep(b: Booking): number {
-  if (b.code) return 4;
-  if (b.buyer && b.seats.length === b.qty) return 3;
-  if (b.buyer) return 2;
+  if (b.code) return 5;
+  if (b.tier && b.buyer && b.orderId && b.holdUntil !== null && b.seats.length === b.qty) return 4;
+  if (b.tier && b.buyer) return 3;
+  if (b.tier) return 2;
   return 1;
-}
-
-export function makeBookingCode(show: ShowId): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
-  const rand = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-  return `AKM-S${show}-${rand}`;
 }

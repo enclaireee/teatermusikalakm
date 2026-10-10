@@ -35,7 +35,7 @@ export function Valance({ tall = false }: { tall?: boolean }) {
 
 /** Red side drapes for the hero. */
 export function Drapes() {
-  const cls = "pointer-events-none absolute inset-y-0 z-[5] w-3.5 border-x-[3px] border-border-default bg-bg-danger lg:w-12";
+  const cls = "pointer-events-none absolute inset-y-0 z-[6] hidden sm:block w-3.5 border-x-[3px] border-border-default bg-bg-danger lg:w-12";
   return (
     <>
       <div aria-hidden className={`${cls} left-0`} />

@@ -1,88 +1,92 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { holdSeats } from "@/app/pesan/actions";
 import { BottomBar, CheckoutCard, CheckoutShell, OrderSummary, stepHref, useStepGuard } from "@/components/checkout/shell";
-import { InviteDialog } from "@/components/checkout/invite-dialog";
 import { SeatLegend } from "@/components/seat/seat-legend";
 import { SeatMap } from "@/components/seat/seat-map";
+import { RevealText } from "@/components/site/reveal-text";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
 import { useBooking } from "@/lib/booking";
-import { EVENT, HOLD_MINUTES, SHOWS } from "@/lib/event";
+import { EVENT, HOLD_MINUTES, SHOWS, TIERS } from "@/lib/event";
+import { useAvailability } from "@/lib/use-availability";
 
 export default function KursiPage() {
-  const ok = useStepGuard(2);
+  const ok = useStepGuard(3);
+  return ok ? <Kursi /> : null;
+}
+
+function Kursi() {
   const { show, booking, update } = useBooking();
   const router = useRouter();
-  const [modal, setModal] = useState(false);
-  const vipRef = useRef<HTMLDivElement>(null);
-  const focusVip = useRef(false);
-  const { vipUnlocked: unlocked } = booking;
-  useEffect(() => {
-    // the opener button unmounts on unlock, so move focus to the success alert
-    if (unlocked && focusVip.current) {
-      focusVip.current = false;
-      vipRef.current?.focus();
-    }
-  }, [unlocked]);
-  if (!ok) return null;
+  const avail = useAvailability(show);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string>();
 
-  const { qty, seats, vipUnlocked } = booking;
+  const { qty, seats, tier, buyer, heldSeats } = booking;
+  const taken = useMemo(() => (avail.data?.taken ?? []).filter((id) => !heldSeats.includes(id)), [avail.data, heldSeats]); // own hold is not "taken"
+  if (!tier || !buyer) return null; // useStepGuard guarantees both
   const done = seats.length === qty;
+
   const next = () => {
-    // ponytail: real holds move server-side; client only starts the hold once so step-bouncing can't extend it
-    if (booking.holdUntil === null || booking.holdUntil <= Date.now()) update({ holdUntil: Date.now() + HOLD_MINUTES * 60_000 });
-    router.push(stepHref(show, 3));
+    if (booking.orderId && booking.holdUntil && booking.holdUntil > Date.now() && [...seats].sort().join() === [...heldSeats].sort().join()) {
+      router.push(stepHref(show, 4));
+      return;
+    }
+    setError(undefined);
+    startTransition(async () => {
+      try {
+        const r = await holdSeats({ show, tier, seats, buyer, prevOrderId: booking.orderId });
+        if (r.ok) {
+          const price = r.total / seats.length;
+          update({ orderId: r.orderId, heldSeats: seats, holdUntil: r.heldUntil, total: r.total, price, priceChanged: booking.price !== null && price !== booking.price });
+          router.push(stepHref(show, 4));
+        } else {
+          setError(r.error);
+          // a failed hold rolls back in SQL, so the previous hold (heldSeats) is still ours: keep it out of "taken"
+          if (r.lost?.length) update({ seats: seats.filter((s) => !r.lost!.includes(s)), holdUntil: null, total: null });
+          avail.refresh();
+        }
+      } catch {
+        setError("Koneksi bermasalah. Coba lagi ya.");
+      }
+    });
   };
-  const cta = { label: "Lanjut ke Pembayaran", disabled: !done, onClick: next };
+  const cta = { label: "Lanjut ke Pembayaran", disabled: !done, loading: pending, onClick: next };
 
   return (
     <CheckoutShell
-      step={2}
+      step={3}
       aside={<OrderSummary cta={cta} note={`Kursi ditahan ${HOLD_MINUTES} menit setelah kamu lanjut.`} />}
       bottomBar={<BottomBar info={seats.length ? `${seats.length} kursi · ${seats.join(", ")}` : `Pilih ${qty} kursi`} cta={{ ...cta, label: "Lanjut" }} />}
     >
       <CheckoutCard>
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="type-h2 text-text-brand">Pilih {qty} kursi</h1>
-            <p className="type-body-s text-text-secondary">
+            <RevealText as="h1" text={`Pilih ${qty} kursi`} className="type-h2 text-text-brand" />
+            <p data-reveal="fade" className="type-body-s text-text-secondary">
               {SHOWS[show].label} · {EVENT.dateShort} · {SHOWS[show].start} WIB
             </p>
+            <p data-reveal="fade" className="type-body-s text-text-secondary">
+              {tier}{booking.tierName && booking.tierName !== tier ? ` · ${booking.tierName}` : ""} · {TIERS[tier].title} · {TIERS[tier].rows}
+            </p>
           </div>
-          <span aria-live="polite" className={`type-label shrink-0 rounded-full border-2 border-border-default px-3.5 py-1.5 ${done ? "bg-bg-brand text-text-on-brand" : "bg-bg-accent text-text-on-accent"}`}>
+          <span data-reveal="fade" aria-live="polite" className={`type-label shrink-0 rounded-full border-2 border-border-default px-3.5 py-1.5 ${done ? "bg-bg-brand text-text-on-brand" : "bg-bg-accent text-text-on-accent"}`}>
             {seats.length}/{qty} dipilih
           </span>
         </div>
-        <SeatLegend />
-        {vipUnlocked && (
-          <div ref={vipRef} tabIndex={-1} className="focus:outline-none">
-            <Alert type="success" title="Kursi VIP terbuka">Kursi VIP (baris E–F tengah) sekarang bisa dipilih.</Alert>
-          </div>
+        {error && <Alert type="error" title="Kursi belum bisa ditahan">{error}</Alert>}
+        {avail.error && !avail.data && (
+          <Alert type="error" title="Status kursi belum bisa dimuat">
+            Cek koneksimu, lalu <button type="button" onClick={avail.refresh} className="underline">coba lagi</button>.
+          </Alert>
         )}
-        <SeatMap show={show} selected={seats} max={qty} vipUnlocked={vipUnlocked} onChange={(s) => update({ seats: s })} />
-        {!vipUnlocked && (
-          <div className="flex flex-col gap-4 rounded-md border-2 border-dashed border-border-subtle bg-bg-muted px-5 py-4 lg:flex-row lg:items-center">
-            <Icon name="key" size={24} className="shrink-0 text-text-primary" />
-            <div className="min-w-0 flex-1">
-              <p className="type-body-m text-text-strong">Punya kode undangan?</p>
-              <p className="type-body-s text-text-secondary">Masukkan kode untuk membuka kursi VIP (baris E–F tengah).</p>
-            </div>
-            <Button variant="secondary" icon="key" onClick={() => setModal(true)}>Masukkan kode</Button>
-          </div>
-        )}
+        <div data-reveal="fade"><SeatLegend tier={tier} /></div>
+        <div data-reveal="fade" aria-busy={avail.loading}>
+          <SeatMap tier={tier} taken={taken} selected={seats} max={qty} onChange={(s) => update({ seats: s })} />
+        </div>
       </CheckoutCard>
-      <InviteDialog
-        open={modal}
-        onClose={() => setModal(false)}
-        onUnlock={() => {
-          focusVip.current = true;
-          update({ vipUnlocked: true });
-          setModal(false);
-        }}
-      />
     </CheckoutShell>
   );
 }

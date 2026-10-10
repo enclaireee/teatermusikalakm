@@ -1,42 +1,43 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
-import { isTaken, MAX_CENTER, MAX_SIDE, SEAT_ROWS, SEATS, type Seat, type SeatRow } from "@/lib/seats";
-import type { ShowId } from "@/lib/event";
+import { memo, useCallback, useMemo, useState } from "react";
+import { MAX_CENTER, MAX_SIDE, SEAT_ROWS, SEATS, type Seat, type SeatRow } from "@/lib/seats";
+import type { Tier } from "@/lib/event";
 import { SeatButton, type SeatState } from "./seat";
 
-type Props = { show: ShowId; selected: string[]; max: number; vipUnlocked: boolean; onChange: (selected: string[]) => void };
+type Props = { tier: Tier; taken: string[]; selected: string[]; max: number; onChange: (selected: string[]) => void };
 
 const GAP = 4;
 const slotsWidth = (n: number) => `calc(var(--s) * ${n} + ${GAP * (n - 1)}px)`;
 const ZOOMS = [0.8, 0.9, 1, 1.2, 1.4];
 
-function Block({ seats, slots, align, show, vip, sel }: { seats: Seat[]; slots: number; align: string; show: ShowId; vip: boolean; sel: string }) {
+function Block({ seats, slots, align, tier, taken, sel }: { seats: Seat[]; slots: number; align: string; tier: Tier; taken: Set<string>; sel: string }) {
   return (
     <div className={`flex shrink-0 gap-1 ${align}`} style={{ width: slotsWidth(slots) }}>
       {seats.map((s) => {
-        const state: SeatState = sel.includes(` ${s.id} `) ? "selected" : s.tier === "VIP" ? (vip ? "available" : "locked") : isTaken(s, show) ? "taken" : "available";
+        const state: SeatState = s.tier === "VIP" ? "reserved" : s.tier !== tier ? "other" : sel.includes(` ${s.id} `) ? "selected" : taken.has(s.id) ? "taken" : "available";
         return <SeatButton key={s.id} seat={s} state={state} />;
       })}
     </div>
   );
 }
 
-// Memoised per row: only rows whose selection string / vip flag changes re-render.
-const Row = memo(function Row({ r, show, vip, sel }: { r: SeatRow; show: ShowId; vip: boolean; sel: string }) {
+// Memoised per row: only rows whose selection string / tier / taken set changes re-render.
+const Row = memo(function Row({ r, tier, taken, sel }: { r: SeatRow; tier: Tier; taken: Set<string>; sel: string }) {
   const label = <span className="w-5 text-center text-text-secondary type-caption" aria-hidden>{r.row}</span>;
   return (
     <div role="group" aria-label={`Baris ${r.row}`} className="flex items-center gap-4">
       {label}
-      <Block seats={r.left} slots={MAX_SIDE} align="justify-end" show={show} vip={vip} sel={sel} />
-      <Block seats={r.center} slots={MAX_CENTER} align="justify-center" show={show} vip={vip} sel={sel} />
-      <Block seats={r.right} slots={MAX_SIDE} align="justify-start" show={show} vip={vip} sel={sel} />
+      <Block seats={r.left} slots={MAX_SIDE} align="justify-end" tier={tier} taken={taken} sel={sel} />
+      <Block seats={r.center} slots={MAX_CENTER} align="justify-center" tier={tier} taken={taken} sel={sel} />
+      <Block seats={r.right} slots={MAX_SIDE} align="justify-start" tier={tier} taken={taken} sel={sel} />
       {label}
     </div>
   );
 });
 
-export function SeatMap({ show, selected, max, vipUnlocked, onChange }: Props) {
+export function SeatMap({ tier, taken, selected, max, onChange }: Props) {
+  const takenSet = useMemo(() => new Set(taken), [taken]);
   const [zoomIdx, setZoomIdx] = useState(2);
   const [notice, setNotice] = useState("");
 
@@ -47,18 +48,19 @@ export function SeatMap({ show, selected, max, vipUnlocked, onChange }: Props) {
 
   const toggle = useCallback((e: React.MouseEvent) => {
     const id = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-id]")?.dataset.id;
-    if (!id || !SEATS[id]) return;
+    if (!id || SEATS[id]?.tier !== tier) return;
     const cur = selected, m = max, change = onChange;
     if (cur.includes(id)) { setNotice(""); change(cur.filter((x) => x !== id)); }
     else if (cur.length >= m) setNotice(`Maks. ${m} kursi. Batalkan salah satu dulu.`);
     else { setNotice(""); change([...cur, id]); }
-  }, [selected, max, onChange]);
+  }, [selected, max, onChange, tier]);
 
   const zoomBtn = "flex size-11 items-center justify-center rounded-md border border-border-default bg-bg-surface text-text-strong type-h3 disabled:bg-bg-disabled disabled:text-text-disabled";
 
   return (
     <div>
-      <div ref={centre} className="overflow-x-auto rounded-md bg-bg-muted p-1 lg:overflow-visible lg:bg-transparent lg:p-0">
+      {/* Scrolls on desktop too: the map (~924px) is wider than the content column below ~1430px windows. */}
+      <div ref={centre} className="overflow-x-auto rounded-md bg-bg-muted p-1 lg:bg-transparent lg:p-0">
         <div
           onClick={toggle}
           style={{ "--z": ZOOMS[zoomIdx] } as React.CSSProperties}
@@ -68,7 +70,7 @@ export function SeatMap({ show, selected, max, vipUnlocked, onChange }: Props) {
           <div className="h-2.5" />
           {SEAT_ROWS.map((r) => {
             const sel = " " + selected.filter((id) => SEATS[id]?.row === r.row).join(" ") + " ";
-            return <Row key={r.row} r={r} show={show} vip={vipUnlocked} sel={sel} />;
+            return <Row key={r.row} r={r} tier={tier} taken={takenSet} sel={sel} />;
           })}
         </div>
       </div>

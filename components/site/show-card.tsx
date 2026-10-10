@@ -1,35 +1,72 @@
+import { Suspense } from "react";
+import { connection } from "next/server";
 import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
+import { Burst } from "@/components/site/hero-art";
 import { Stamp } from "@/components/ui/stamp";
 import { EVENT, SHOWS, type ShowId } from "@/lib/event";
-import { seatsLeft } from "@/lib/seats";
+import { getAvailability } from "@/lib/availability";
 
-/** Show card (Figma Show Card: Default / Hover / Sold Out). */
+/** Show card with live seat count; static shell shows "Sisa kursi —" until/unless the DB answers. */
 export function ShowCard({ id }: { id: ShowId }) {
-  const show = SHOWS[id];
-  const left = seatsLeft(id);
-  const sold = left === 0;
   return (
-    <article className={`group relative flex min-w-0 flex-col gap-4 rounded-lg border-2 border-border-default bg-bg-surface bg-paper p-6 shadow-sticker reveal transition-[translate,background-color,box-shadow,border-color] duration-(--duration-base) ease-(--ease-out-soft) ${sold ? "" : "hover:-translate-y-1 hover:border-border-brand hover:bg-bg-accent-soft hover:shadow-sticker-l focus-within:border-border-brand focus-within:bg-bg-accent-soft focus-within:shadow-sticker-l"}`}>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className={`type-h4 rounded-sm border-2 border-border-default px-3 py-1 uppercase text-text-strong ${sold ? "bg-bg-disabled" : "bg-bg-accent"}`}>{show.label}</h3>
-        <span className={`type-caption rounded-full px-3 py-1 ${sold ? "bg-bg-danger-soft text-text-danger" : "bg-bg-brand-soft text-text-brand"}`}>
-          {sold ? "Habis" : `Sisa ${left} kursi`}
-        </span>
+    <Suspense fallback={<ShowCardView id={id} />}>
+      <LiveShowCard id={id} />
+    </Suspense>
+  );
+}
+
+async function LiveShowCard({ id }: { id: ShowId }) {
+  await connection(); // always request-time, never baked into the static shell
+  let left: number | undefined;
+  try {
+    left = (await getAvailability(id)).tiers.reduce((n, t) => n + t.left, 0);
+  } catch {
+    // DB unreachable: render the placeholder state
+  }
+  return <ShowCardView id={id} left={left} />;
+}
+
+/** Torn ADMIT ONE ticket: body + stub split by a perforation (stub right at md+, bottom on mobile). `left` undefined = unknown. */
+function ShowCardView({ id, left }: { id: ShowId; left?: number }) {
+  const show = SHOWS[id];
+  const sold = left === 0;
+  const end = show.time.split("–")[1]?.trim();
+  const notch = "absolute size-8 rounded-full border-[3px] border-border-default bg-bg-page";
+  return (
+    <article className={`group relative flex min-w-0 flex-col border-[3px] border-border-default shadow-sticker-l transition-[rotate,translate,box-shadow] duration-(--duration-base) ease-(--ease-out-soft) md:flex-row ${id === "1" ? "-rotate-[1.5deg]" : "rotate-[1.5deg]"} ${sold ? "bg-bg-muted" : "bg-bg-page hover:-translate-y-1 hover:rotate-0 focus-within:-translate-y-1 focus-within:rotate-0"}`}>
+      {/* body */}
+      <div className={`relative min-w-0 flex-1 overflow-hidden p-5 lg:p-6 ${sold ? "text-text-primary" : "bg-paper text-text-strong"}`}>
+        <span aria-hidden className="pointer-events-none absolute -bottom-6 -left-6 size-28 [background-image:radial-gradient(rgb(0_0_0/0.22)_1.5px,transparent_2px)] [background-size:8px_8px] [mask-image:radial-gradient(circle_at_0_100%,#000,transparent_70%)]" />
+        <div className="relative flex flex-wrap items-center gap-3 pr-14">
+          <h3 className={`type-h4 -rotate-[4deg] border-[3px] border-border-default px-3 py-1 uppercase shadow-sticker-s ${sold ? "bg-bg-disabled text-text-strong" : "bg-bg-brand text-text-on-brand"}`}>{show.label}</h3>
+          <span aria-hidden className="type-caption tracking-[0.2em] text-text-primary">ADMIT ONE</span>
+        </div>
+        {!sold && <Burst className="right-3 top-3 size-12 rotate-12" still />}
+        <p className="relative mt-4 flex flex-wrap items-baseline gap-x-2">
+          <span className="type-display-l -rotate-3">{show.start}</span>
+          <span className="type-h4">– {end} WIB</span>
+        </p>
+        <p className="type-body-m relative mt-3">{EVENT.date}</p>
+        <p className="type-body-m relative">{EVENT.venue}</p>
+        <p className="type-body-s relative mt-3 flex items-center gap-2">
+          <svg aria-hidden viewBox="0 0 40 24" fill="none" strokeWidth={3} strokeLinecap="round" className="h-5 w-8 shrink-0 stroke-bg-danger"><path d="M5 3V21M14 3V21M23 3V21M32 3V21M2 17L36 7" /></svg>
+          {sold ? "Habis" : `Sisa ${left ?? "—"} kursi`}
+        </p>
       </div>
-      <p className="flex flex-wrap items-baseline gap-x-2">
-        <span className={`type-h1 ${sold ? "text-text-secondary" : "text-text-strong"}`}>{show.time}</span>
-        <span className="type-h4 text-text-secondary">WIB</span>
-      </p>
-      <p className="type-body-m flex items-center gap-2"><Icon name="calendar" size={20} className="shrink-0 text-text-secondary" />{EVENT.date}</p>
-      <p className="type-body-m flex items-center gap-2"><Icon name="map-pin" size={20} className="shrink-0 text-text-secondary" />{EVENT.venue}</p>
-      <hr className="border-t-2 border-dashed border-border-subtle" />
-      {sold ? (
-        <Button disabled fullWidth>Tiket Habis</Button>
-      ) : (
-        <Button href={`/pesan/${id}/data-diri`} icon="arrow-right" fullWidth>Pilih {show.label}</Button>
-      )}
-      {sold && <Stamp color="red" rotate={-8} className="absolute right-6 top-16">SOLD OUT</Stamp>}
+
+      {/* stub */}
+      <div className={`relative flex flex-col gap-3 border-t-[3px] border-dashed border-border-default p-5 md:w-52 md:shrink-0 md:justify-center md:border-l-[3px] md:border-t-0 ${sold ? "" : "bg-bg-accent-soft bg-paper"}`}>
+        <span aria-hidden className={`${notch} -left-[18px] -top-[18px] md:-left-4 md:-top-[19px]`} />
+        <span aria-hidden className={`${notch} -right-[18px] -top-[18px] md:-left-4 md:right-auto md:top-auto md:-bottom-[19px]`} />
+        <span aria-hidden className="bg-barcode h-10 w-full opacity-80 md:h-14" />
+        <span aria-hidden className="type-caption -rotate-3 text-text-primary">No. 00{id}</span>
+        {sold ? (
+          <Button disabled fullWidth>Tiket Habis</Button>
+        ) : (
+          <Button href={`/pesan/${id}/pilih-tiket`} icon="arrow-right" fullWidth>Pilih {show.label}</Button>
+        )}
+      </div>
+      {sold && <span aria-hidden><Stamp color="red" rotate={-10} className="absolute left-1/2 top-1/3 -translate-x-1/2 bg-bg-muted/80">SOLD OUT</Stamp></span>}
     </article>
   );
 }

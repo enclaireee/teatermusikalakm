@@ -585,7 +585,7 @@ async function buildFooter() {
     await para(brand, 'Teater musikal karya mahasiswa Stage Performing Arts, Produksi Media, Sekolah Vokasi UI, berkolaborasi dengan Juzzer.', 'Body/S', 'text/on-brand');
     const cols = [
       ['Jadwal', [['calendar', 'Kamis, 29 Oktober 2026'], ['clock', 'Show 1 · 15.00–17.00 WIB'], ['clock', 'Show 2 · 19.00–21.00 WIB'], ['map-pin', 'Makara Art Center UI, Depok']]],
-      ['Kontak', [['instagram', '@stage.ui (Instagram & TikTok)'], ['mail', 'stagepromedui@gmail.com'], ['phone', 'Hana · 0859-0001-8942']]],
+      ['Kontak', [['instagram', '@stage.ui (Instagram & TikTok)'], ['mail', 'stagepromedui@gmail.com'], ['phone', 'Danisa · 0817250310 · Line @danisaarch'], ['phone', 'Panji · 081382821069 · Line @panjizigi']]],
     ];
     for (const [title, rows] of cols) {
       const col = frame('VERTICAL', title); col.itemSpacing = 12; top.appendChild(col);
@@ -1109,7 +1109,7 @@ async function receipt() {
   await para(sc, 'Scan untuk cek status pesanan', 'Label/M', 'text/strong');
   await para(sc, 'E-receipt ini bukti pembayaran, bukan tiket masuk. E-tiket ber-QR dikirim via email & WhatsApp setelah verifikasi. Datang lebih awal ya, biar nggak buru-buru!', 'Body/S', 'text/primary');
   const foot = add(r, frame('HORIZONTAL', 'Footer'), 'FILL'); pad(foot, 16, 40); foot.primaryAxisAlignItems = 'SPACE_BETWEEN'; fill(foot, 'bg/brand-strong');
-  foot.appendChild(await text('@stage.ui · stagepromedui@gmail.com · WA 0859-0001-8942', 'Caption', 'text/on-brand'));
+  foot.appendChild(await text('@stage.ui · Danisa 0817250310 · Panji 081382821069', 'Caption', 'text/on-brand'));
   foot.appendChild(await text('Presented by Juzzer × Stage UI', 'Caption', 'text/accent'));
   // notches + stamp + texture
   for (const x of [-14, 786]) { const n = figma.createEllipse(); n.name = 'Notch'; n.resize(28, 28); fill(n, 'bg/muted'); n.strokes = [paint('border/default')]; n.strokeWeight = 2; absolute(r, n, x, stub.y - 14); }

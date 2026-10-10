@@ -6,15 +6,13 @@ import { Button } from "./button";
 type Props = {
   file: { name: string; size: number } | null;
   error?: string;
-  uploading?: boolean;
-  progress?: number;
   accept: string;
   onFile: (file: File) => void; // also used to replace an uploaded file ("Ganti")
 };
 
 const mb = (n: number) => `${(n / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
 
-export function Upload({ file, error, uploading, progress = 0, accept, onFile }: Props) {
+export function Upload({ file, error, accept, onFile }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const pick = () => input.current?.click();
@@ -25,7 +23,7 @@ export function Upload({ file, error, uploading, progress = 0, accept, onFile }:
       onChange={(e) => { take(e.target.files?.[0]); e.target.value = ""; }} />
   );
 
-  if (file && !uploading && !error) {
+  if (file && !error) {
     return (
       <>
       {hidden}
@@ -42,29 +40,21 @@ export function Upload({ file, error, uploading, progress = 0, accept, onFile }:
   }
 
   const tone = error ? "border-border-danger bg-bg-danger-soft" : over ? "border-border-brand bg-bg-accent-soft" : "border-border-default bg-bg-surface";
-  const title = error ? "File tidak bisa dipakai" : uploading ? "Mengunggah…" : "Upload bukti pembayaran";
-  const desc = error ?? (uploading ? `${file?.name ?? ""} · ${Math.round(progress)}%` : "Tarik file ke sini atau pilih dari perangkat · JPG, PNG, PDF, maks. 5 MB");
+  const title = error ? "File tidak bisa dipakai" : "Upload bukti pembayaran";
+  const desc = error ?? "Tarik file ke sini atau pilih dari perangkat · JPG, PNG, PDF, maks. 3 MB";
   return (
     <>
     {hidden}
     <div
-      onDragOver={(e) => { e.preventDefault(); if (!uploading) setOver(true); }}
+      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
-      onDrop={(e) => { e.preventDefault(); setOver(false); if (!uploading) take(e.dataTransfer.files[0]); }}
+      onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files[0]); }}
       className={`flex min-w-0 flex-col items-center gap-3 rounded-md border-2 border-dashed p-6 text-center transition-[background-color,border-color] duration-(--duration-fast) ease-(--ease-out-soft) ${tone}`}
     >
       <Icon name={error ? "alert-circle" : "upload"} size={32} className={error ? "text-text-danger" : "text-text-brand"} />
       <p className="type-body-m text-text-strong">{title}</p>
       <p role={error ? "alert" : undefined} className={`type-caption ${error ? "text-text-danger" : "text-text-secondary"}`}>{desc}</p>
-      {uploading ? (
-        <div role="progressbar" aria-label="Progres unggah" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="h-2 w-full overflow-hidden rounded-full bg-bg-disabled">
-          <div className="h-full rounded-full bg-bg-brand transition-[width] duration-(--duration-base) ease-(--ease-out-soft)" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
-        </div>
-      ) : (
-        <>
-          <Button variant="secondary" onClick={pick}>{error ? "Pilih file lain" : "Pilih file"}</Button>
-        </>
-      )}
+      <Button variant="secondary" onClick={pick}>{error ? "Pilih file lain" : "Pilih file"}</Button>
     </div>
     </>
   );

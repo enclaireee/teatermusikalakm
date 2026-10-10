@@ -8,11 +8,10 @@ import { Navbar } from "@/components/site/navbar";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/ui/stepper";
 import { allowedStep, useBooking } from "@/lib/booking";
-import { EVENT, SHOWS, TIERS, formatRupiah, totalLabel, type Tier } from "@/lib/event";
-import { SEATS } from "@/lib/seats";
+import { EVENT, SHOWS, formatRupiah } from "@/lib/event";
 
-export type Step = 1 | 2 | 3 | 4;
-const STEP_PATH: Record<Step, string> = { 1: "data-diri", 2: "kursi", 3: "bayar", 4: "selesai" };
+export type Step = 1 | 2 | 3 | 4 | 5;
+const STEP_PATH: Record<Step, string> = { 1: "pilih-tiket", 2: "data-diri", 3: "kursi", 4: "bayar", 5: "selesai" };
 
 export function stepHref(show: string, step: Step) {
   return `/pesan/${show}/${STEP_PATH[step]}`;
@@ -24,9 +23,9 @@ export function useStepGuard(step: Step): boolean {
   const router = useRouter();
   const allowed = allowedStep(booking) as Step;
   // Step 1 is always open (it starts a new order). A finished booking otherwise only shows the success page.
-  const ok = ready && (step === 1 || (booking.code ? step === 4 : allowed >= step));
+  const ok = ready && (step === 1 || (booking.code ? step === 5 : allowed >= step));
   useEffect(() => {
-    if (ready && !ok) router.replace(stepHref(show, booking.code ? 4 : allowed));
+    if (ready && !ok) router.replace(stepHref(show, booking.code ? 5 : allowed));
   }, [ready, ok, allowed, booking.code, router, show]);
   return ok;
 }
@@ -50,15 +49,14 @@ function CtaButton({ cta, fullWidth }: { cta: Cta; fullWidth?: boolean }) {
   );
 }
 
-/** "Tipe 1 × 2, Tipe 3 × 1" + total for the current seat selection. */
+/** "Nama × n" + total: the server total once seats are held, otherwise unit price × qty (display only). */
 export function useOrderLines() {
   const { booking } = useBooking();
-  const tiers = booking.seats.map((id) => SEATS[id]?.tier).filter(Boolean) as Tier[];
-  const counts = new Map<Tier, number>();
-  for (const t of tiers) counts.set(t, (counts.get(t) ?? 0) + 1);
-  const lines = [...counts].map(([tier, n]) => ({ label: `${tier} × ${n}`, value: TIERS[tier].invite ? null : formatRupiah(TIERS[tier].price === null ? null : TIERS[tier].price! * n) }));
-  const total = tiers.length ? totalLabel(tiers) : "Rp —";
-  return { lines, total };
+  const { tier, qty, price, total: held } = booking;
+  const n = booking.seats.length || qty;
+  const amount = held ?? (price === null ? null : price * n);
+  const lines = tier ? [{ label: `${tier} × ${n}`, value: formatRupiah(amount) }] : [];
+  return { lines, total: formatRupiah(amount) };
 }
 
 /** Desktop aside card (Figma "Order Summary"). */
@@ -69,7 +67,7 @@ export function OrderSummary({ cta, note }: { cta?: Cta; note?: string }) {
     ["Tanggal", EVENT.dateShort],
     ["Lokasi", EVENT.venueShort],
     ["Pemesan", booking.buyer?.name || "—"],
-    ["Kursi", booking.seats.length ? booking.seats.join(", ") : `${booking.qty} kursi, dipilih di langkah 2`],
+    ["Kursi", booking.seats.length ? booking.seats.join(", ") : `${booking.qty} kursi, dipilih di langkah 3`],
   ];
   return (
     <section aria-label="Ringkasan pesanan" className="flex flex-col gap-4 rounded-lg border-2 border-border-default bg-bg-surface bg-paper p-6 shadow-sticker">
@@ -98,7 +96,7 @@ export function OrderSummary({ cta, note }: { cta?: Cta; note?: string }) {
       {lines.map((l) => (
         <div key={l.label} className="type-body-s flex justify-between">
           <span>{l.label}</span>
-          {l.value !== null && <span>{l.value}</span>}
+          <span>{l.value}</span>
         </div>
       ))}
       <div className="flex items-center justify-between">
@@ -131,7 +129,8 @@ const BACK: Record<Step, { label: string; step: Step | null }> = {
   1: { label: "Kembali", step: null },
   2: { label: "Kembali", step: 1 },
   3: { label: "Kembali", step: 2 },
-  4: { label: "Beranda", step: null },
+  4: { label: "Kembali", step: 3 },
+  5: { label: "Beranda", step: null },
 };
 
 /**
@@ -145,7 +144,7 @@ export function CheckoutShell({ step, aside, bottomBar, children }: { step: Step
     <>
       <Navbar cta={false} />
       <div className="mx-auto w-full max-w-[1440px] flex-1">
-        <div className="flex flex-col gap-4 px-4 pt-4 lg:flex-row lg:items-center lg:justify-between lg:px-20 lg:pt-6">
+        <div data-reveal="fade" className="flex flex-col gap-4 px-4 pt-4 lg:flex-row lg:items-center lg:justify-between lg:px-20 lg:pt-6">
           <div className="lg:w-40">
             <Button variant="ghost" icon="arrow-left" iconStart href={back.step ? stepHref(show, back.step) : "/"}>
               {back.label}
@@ -155,8 +154,8 @@ export function CheckoutShell({ step, aside, bottomBar, children }: { step: Step
           <div className="hidden lg:block lg:w-40" />
         </div>
         <main className="flex flex-col gap-4 px-4 pb-6 pt-4 lg:flex-row lg:items-start lg:gap-6 lg:px-20 lg:pb-24 lg:pt-8">
-          <div className="animate-enter flex min-w-0 flex-1 flex-col gap-4 lg:gap-6">{children}</div>
-          {aside && <aside className="animate-enter [animation-delay:120ms] hidden w-80 shrink-0 flex-col gap-4 lg:sticky lg:top-28 lg:flex">{aside}</aside>}
+          <div className="flex min-w-0 flex-1 flex-col gap-4 lg:gap-6">{children}</div>
+          {aside && <aside data-reveal="right" className="hidden w-80 shrink-0 flex-col gap-4 lg:sticky lg:top-28 lg:flex">{aside}</aside>}
         </main>
       </div>
       {bottomBar}

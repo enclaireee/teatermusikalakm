@@ -54,7 +54,7 @@ Opsional: ada plugin lokal di repo `figma-plugin/` (`manifest.json` + `code.js`)
 - **Cast:**
   - Main cast: Albian Athaya Putra (Athar), Yokhebed Chelsee Radeyla (Dinda)
   - Ensemble: Nallegra Linggar, Kinara Syahla Naura, Chella Ernawati, M. Putra Januar, Rifano Chandra Kurniawan, Nathaniel Hans Gunawan
-- **Kontak:** IG/TikTok @stage.ui, stagepromedui@gmail.com, WA Hana 0859-0001-8942.
+- **Kontak:** IG/TikTok @stage.ui, stagepromedui@gmail.com, Danisa 0817250310 (Line @danisaarch), Panji 081382821069 (Line @panjizigi).
 - **Visi/misi dan latar belakang:** ambil dari section "Proposal Kegiatan", "Proposal Sponsor" dan "Proposal Medpar" di page DESIGN.
 
 **Denah kursi (400 kursi per show), stage di atas, baris A paling dekat ke stage:**
