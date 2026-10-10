@@ -55,11 +55,11 @@ export default function Home() {
             <div className="flex w-full flex-col items-center gap-4">
               <h2 className="reveal type-h3 lg:type-h2 text-center text-text-strong">Kategori &amp; harga tiket</h2>
               <ul className="grid w-full grid-cols-2 gap-4 lg:flex lg:flex-wrap lg:justify-center lg:gap-6">
-                {(Object.keys(TIERS) as Tier[]).map((t, i) => (
+                {(Object.keys(TIERS) as Tier[]).filter((t) => !TIERS[t].invite).map((t, i) => (
                   <li key={t} className={`reveal ${i % 2 ? "[animation-range:entry_10%_cover_35%]" : ""} flex min-w-0 [&>div]:w-full lg:[&>div]:w-70`}><TierCard tier={t} /></li>
                 ))}
               </ul>
-              <p className="type-caption text-center text-text-secondary">Harga masih placeholder. Kursi VIP (baris E–F tengah) khusus tamu undangan dengan kode.</p>
+              <p className="type-caption text-center text-text-secondary">Harga masih placeholder.</p>
             </div>
           </div>
         </section>
