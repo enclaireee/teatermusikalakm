@@ -3,6 +3,7 @@ import type { AdminOrder } from "@/lib/admin";
 import { SHOWS, formatRupiah } from "@/lib/event";
 import { ProofButton } from "./proof-dialog";
 import { MarkToggle } from "./mark-toggle";
+import { ClaimButton } from "./claim-button";
 import { BuyerChip, HargaChip, METHOD_LABEL, formatWib } from "./status-chip";
 
 const TH = "px-1.5 py-2 text-left md:px-3";
@@ -18,6 +19,7 @@ export function OrdersTable({ orders }: { orders: AdminOrder[] }) {
             <th scope="col" className={TH}>Kode</th>
             <th scope="col" className={TH}>Pembeli</th>
             <th scope="col" className={TH}>Cek</th>
+            <th scope="col" className={TH}>Tiket</th>
             <th scope="col" className={`${TH} hidden md:table-cell`}>Show</th>
             <th scope="col" className={`${TH} hidden md:table-cell`}>Kursi</th>
             <th scope="col" className={`${TH} hidden text-right md:table-cell`}>Total</th>
@@ -43,6 +45,9 @@ export function OrdersTable({ orders }: { orders: AdminOrder[] }) {
               </td>
               <td className={TD}>
                 <MarkToggle id={o.id} code={o.code} checked={o.checked} size="sm" />
+              </td>
+              <td className={TD}>
+                <ClaimButton id={o.id} code={o.code} claimedAt={o.claimedAt} valid={o.status === "valid"} size="sm" />
               </td>
               <td className={`${TD} hidden whitespace-nowrap md:table-cell`}>{SHOWS[o.show].label}</td>
               <td className={`${TD} hidden md:table-cell`}>{o.tier} · {o.seats.join(", ")}</td>

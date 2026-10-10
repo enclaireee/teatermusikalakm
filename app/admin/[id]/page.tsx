@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getOrder } from "@/lib/admin";
 import { MarkToggle } from "../mark-toggle";
+import { ClaimButton } from "../claim-button";
 import { ProofButton } from "../proof-dialog";
 import { Alert } from "@/components/ui/alert";
 import { BuyerForm } from "./buyer-form";
@@ -38,6 +39,9 @@ export default async function OrderPage({ params }: PageProps<"/admin/[id]">) {
               <h3 className="type-label text-text-strong">Cek admin</h3>
               <MarkToggle id={order.id} code={order.code} checked={order.checked} size="lg" />
               <p className="type-caption text-text-secondary">Hanya terlihat oleh panitia. Tidak mengubah status tiket pembeli.</p>
+              <h3 className="type-label text-text-strong">Tiket fisik</h3>
+              <ClaimButton id={order.id} code={order.code} claimedAt={order.claimedAt} valid={order.status === "valid"} size="lg" />
+              <p className="type-caption text-text-secondary">Tandai saat pembeli mengambil tiket fisik di hari H. Hanya terlihat oleh panitia.</p>
             </section>
             <section className={PANEL}><MoveSeats order={order} taken={taken} /></section>
           </div>

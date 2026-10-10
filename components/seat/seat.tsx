@@ -19,7 +19,7 @@ const BASE = "relative before:absolute before:-inset-0.5 before:content-[''] fle
 export const SeatButton = memo(function SeatButton({ seat, state }: { seat: SeatData; state: SeatState }) {
   const label =
     state === "taken" ? `${seat.id}, terisi`
-    : state === "reserved" ? `${seat.id}, VIP, tamu undangan`
+    : state === "reserved" ? `${seat.id}, invitation`
     : state === "other" ? `${seat.id}, ${seat.tier}, bukan kategori pilihanmu`
     : `${seat.id}, ${seat.tier}, ${state === "selected" ? "dipilih" : "tersedia"}`;
   const clickable = state === "available" || state === "selected";
@@ -30,7 +30,7 @@ export const SeatButton = memo(function SeatButton({ seat, state }: { seat: Seat
     : state === "other" ? `border-border-default after:absolute after:inset-0 after:rounded-[inherit] after:bg-bg-surface/40 ${TIER_BG[seat.tier]}`
     : `border-border-default ${TIER_BG[seat.tier]}`;
   const interactive = clickable ? "hover:scale-[1.08] hover:border-2 hover:border-border-brand hover:shadow-sticker-s focus-visible:border-2 focus-visible:border-border-brand focus-visible:shadow-sticker-s" : "cursor-not-allowed";
-  const tip = state === "reserved" ? "VIP · tamu undangan" : state === "other" ? `${seat.id} · ${seat.tier} · bukan pilihanmu` : state === "taken" ? `${seat.id} · terisi` : `${seat.id} · ${seat.tier}`;
+  const tip = state === "reserved" ? "INVITATION" : state === "other" ? `${seat.id} · ${seat.tier} · bukan pilihanmu` : state === "taken" ? `${seat.id} · terisi` : `${seat.id} · ${seat.tier}`;
   return (
     <span className="group relative inline-flex">
       <button

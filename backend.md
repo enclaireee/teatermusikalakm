@@ -2,7 +2,7 @@
 
 The checkout's source of truth lives in Supabase: seat holds, orders and payment proofs. The Next.js server talks to it with the **secret key** only (server actions in `app/pesan/actions.ts`, the API route `app/api/show/[show]`). The browser never talks to Supabase directly, so every table is locked down (RLS on, no policies, no grants to `anon`/`authenticated`).
 
-**Numbered steps (1–9) are the only SQL you must run**: in order, in Supabase Dashboard → **SQL Editor**, one new query per step, paste, Run. Every numbered step is safe to re-run. Everything after them (checks, changing prices or quotas, maintenance) is unnumbered: run it only when you need it.
+**Numbered steps (1–10) are the only SQL you must run**: in order, in Supabase Dashboard → **SQL Editor**, one new query per step, paste, Run. Every numbered step is safe to re-run. Everything after them (checks, changing prices or quotas, maintenance) is unnumbered: run it only when you need it.
 
 > **Already ran the old version of this doc (steps 1–7)?** Those are steps 1–5 now. Run **step 6** and **step 7**.
 >
@@ -10,7 +10,9 @@ The checkout's source of truth lives in Supabase: seat holds, orders and payment
 >
 > **Already ran steps 1–7?** Run **step 8** and **step 9**.
 >
-> **Already ran steps 1–8?** Run **step 9** only (rate limiting).
+> **Already ran steps 1–8?** Run **step 9** and **step 10**.
+>
+> **Already ran steps 1–9?** Run **step 10** only (ticket claimed).
 
 How it works, in short:
 
@@ -20,6 +22,7 @@ How it works, in short:
 - `submit_order` turns a live hold into a paid order (status `valid`), clears the hold timer and generates the 5-character booking code.
 - Admins may later set an order to `invalid`; its seats stay locked.
 - The admin panel (`/admin`, step 7) has its own **admin-only** check, `orders.checked` (empty = not reviewed, true = valid, false = not valid). Buyers never see it; it does not change `status`.
+- On show day the admin panel marks when a buyer picked up the physical ticket, `orders.claimed_at` (step 10; empty = not picked up yet). Also admin-only.
 - Ticket categories live in the `tiers` table, keyed `Platinum`, `Gold`, `Silver`, `Bronze` (each is a fixed seat area in `lib/seats.ts`), with a marketing name and a presale and normal price. Whether presale is on is a manual switch (`settings.presale`, toggled on `/admin`, step 8). `tier_price()` picks the presale price while it is on, otherwise the normal price; a ticket category without a price cannot be booked.
 - Each category also has a **quota per show**: `quota_presale` and `quota_sale`. During presale at most `quota_presale` seats of that category can be taken per show; after presale the limit is `quota_presale + quota_sale`, so unsold presale tickets move to the sale. "Taken" counts paid, invalid and live-held seats. `hold_seats` checks the quota under a lock, so two buyers can never both get the last ticket.
 - Broken seats have `seats.blocked = true`: they are never sold and the site shows them as taken.
@@ -505,7 +508,7 @@ grant execute on function public.show_availability(smallint) to service_role;
 
 ## 7. Admin panel (idempotent)
 
-The admin panel lives at `/admin`. No page on the site links to it, and it asks for a login first (`ADMIN_USER` / `ADMIN_PASSWORD`, see [Environment variables](#environment-variables)). It lists every paid order (status `valid` or `invalid`; unpaid holds are left out), shows the payment proof, and can mark an order checked, edit the buyer, move seats and delete orders.
+The admin panel lives at `/admin`. No page on the site links to it, and it asks for a login first (`ADMIN_USER` / `ADMIN_PASSWORD`, see [Environment variables](#environment-variables)). It lists every paid order (status `valid` or `invalid`; unpaid holds are left out), shows the payment proof, and can mark an order checked, mark its physical ticket picked up (step 10), edit the buyer, move seats and delete orders.
 
 - **Checked** (`orders.checked`) is only for the committee's own review. It does not change `status`, so the buyer's "Cek tiket" page and the door check are unaffected.
 - **Move seats** keeps the same show, ticket category and number of seats, so the price and quota never change. Done atomically by `move_seats` below: if someone grabs a target seat first, nothing moves.
@@ -932,6 +935,17 @@ select public.rate_hit('test', 2, 60);
 select public.rate_hit('test', 2, 60);
 select public.rate_hit('test', 2, 60);
 delete from public.rate_limits where key = 'test';
+```
+
+## 10. Ticket claimed (idempotent)
+
+On show day the committee taps **Tandai diambil** in `/admin` (order list or order page) when a buyer picks up the physical ticket. It stores the time in `orders.claimed_at`; **Batalkan** clears it. Only orders with status `valid` can be marked. Admin-only: buyers never see it and it does not change `status`.
+
+> Run this **before** deploying the version of the site that has the button: the admin panel reads this column and fails to load without it.
+
+```sql
+-- Physical ticket picked up on show day: null = not yet, otherwise when. Never shown to buyers.
+alter table public.orders add column if not exists claimed_at timestamptz;
 ```
 
 ---

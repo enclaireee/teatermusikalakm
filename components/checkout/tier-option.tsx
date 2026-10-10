@@ -18,7 +18,7 @@ export function TierOption({ name, info, extraLeft = 0, tier, presale, checked, 
       ? "cursor-pointer border-[3px] border-border-brand bg-bg-brand-soft shadow-sticker"
       : "cursor-pointer border-2 border-border-default bg-bg-surface hover:bg-bg-accent-soft hover:shadow-sticker";
   const muted = disabled ? "text-text-disabled" : checked ? "text-text-primary" : "text-text-secondary";
-  const note = price === null ? "Belum dibuka" : left <= 0 ? "Habis" : `Sisa ${left} kursi`;
+  const note = price === null ? "Belum dibuka" : left <= 0 ? "Habis" : "Tersedia";
   return (
     <label className={`flex min-h-11 min-w-0 items-center gap-3 rounded-md px-4 py-4 transition-[background-color,border-color,box-shadow] duration-(--duration-base) ease-(--ease-out-soft) has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-3 has-[:focus-visible]:outline-border-focus sm:gap-4 sm:px-5 ${state}`}>
       <input type="radio" name={name} value={tier} checked={checked} disabled={disabled} onChange={() => onChange(tier)} className="sr-only" />

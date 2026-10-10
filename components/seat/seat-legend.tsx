@@ -6,7 +6,7 @@ export function SeatLegend({ tier }: { tier: Tier }) {
   const items: { label: string; swatch: string; icon?: IconName; dash?: boolean }[] = [
     { label: "Tersedia", swatch: TIER_BG[tier] },
     { label: "Kategori lain", swatch: `${TIER_BG[tier]} relative after:absolute after:inset-0 after:rounded-[inherit] after:bg-bg-surface/40`, dash: true },
-    { label: "VIP · tamu undangan", swatch: "bg-seat-vip text-text-strong", icon: "lock" },
+    { label: "INVITATION", swatch: "bg-seat-vip text-text-strong", icon: "lock" },
     { label: "Dipilih", swatch: "bg-seat-selected text-text-on-brand", icon: "check" },
     { label: "Terisi", swatch: "bg-seat-taken text-text-on-brand", icon: "x" },
   ];

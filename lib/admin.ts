@@ -90,6 +90,7 @@ export type AdminOrder = {
   status: OrderStatus;
   checked: boolean | null; // admin-only: null = not reviewed, true = valid, false = not valid
   presale: boolean; // bought at the presale price (backend.md step 8)
+  claimedAt: string | null; // ISO; physical ticket picked up on D-day (backend.md step 10)
   createdAt: string; // ISO
   paidAt: string | null; // ISO
   proofPath: string | null;
@@ -98,10 +99,10 @@ export type AdminOrder = {
 type Row = {
   id: string; code: string; show_id: number; tier: AdminOrder["tier"]; qty: number;
   buyer_name: string; buyer_email: string; buyer_phone: string; buyer_org: string | null;
-  method: PayMethod | null; total: number; status: OrderStatus; checked: boolean | null; presale: boolean | null;
+  method: PayMethod | null; total: number; status: OrderStatus; checked: boolean | null; presale: boolean | null; claimed_at: string | null;
   created_at: string; paid_at: string | null; proof_path: string | null; seats: { seat_id: string }[];
 };
-const COLS = "id, code, show_id, tier, qty, buyer_name, buyer_email, buyer_phone, buyer_org, method, total, status, checked, presale, created_at, paid_at, proof_path, seats(seat_id)";
+const COLS = "id, code, show_id, tier, qty, buyer_name, buyer_email, buyer_phone, buyer_org, method, total, status, checked, presale, claimed_at, created_at, paid_at, proof_path, seats(seat_id)";
 
 const seatKey = (id: string) => (SEATS[id] ? SEATS[id].row.charCodeAt(0) * 1000 + SEATS[id].number : 0);
 export const sortSeats = (ids: string[]) => [...ids].sort((a, b) => seatKey(a) - seatKey(b));
@@ -111,7 +112,7 @@ function toOrder(r: Row): AdminOrder {
     id: r.id, code: r.code, show: String(r.show_id) as ShowId, tier: r.tier, qty: r.qty,
     seats: sortSeats(r.seats.map((s) => s.seat_id)),
     buyer: { name: r.buyer_name, email: r.buyer_email, phone: r.buyer_phone, org: r.buyer_org },
-    method: r.method, total: r.total, status: r.status, checked: r.checked, presale: r.presale === true,
+    method: r.method, total: r.total, status: r.status, checked: r.checked, presale: r.presale === true, claimedAt: r.claimed_at,
     createdAt: r.created_at, paidAt: r.paid_at, proofPath: r.proof_path,
   };
 }

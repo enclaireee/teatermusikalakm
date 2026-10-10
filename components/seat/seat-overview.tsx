@@ -4,7 +4,7 @@ import { TIER_BG } from "./seat";
 
 type Props = { tier: Tier | null; names: Partial<Record<Tier, string>> };
 
-const SUMMARY = "Denah kursi, panggung di depan, baris A terdekat. " + (["Platinum", "Gold", "Silver", "Bronze", "VIP"] as Tier[]).map((t) => `${t} ${TIERS[t].title.toLowerCase()}, ${TIERS[t].rows}`).join("; ") + ".";
+const SUMMARY = "Denah kursi, panggung di depan, baris A terdekat. " + (["Platinum", "Gold", "Silver", "Bronze", "VIP"] as Tier[]).map((t) => `${t === "VIP" ? "Invitation" : `${t} ${TIERS[t].title.toLowerCase()}`}, ${TIERS[t].rows}`).join("; ") + ".";
 
 function Block({ seats, slots, align, tier }: { seats: Seat[]; slots: number; align: string; tier: Tier | null }) {
   return (
@@ -39,7 +39,7 @@ export function SeatOverview({ tier, names }: Props) {
         ))}
       </div>
       <ul className="flex flex-wrap gap-x-3 gap-y-2">
-        {[...SALE_TIERS.map((t) => ({ k: t, label: label(t), swatch: TIER_BG[t] })), { k: "VIP", label: "VIP · tamu undangan", swatch: "bg-seat-vip" }].map((i) => (
+        {[...SALE_TIERS.map((t) => ({ k: t, label: label(t), swatch: TIER_BG[t] })), { k: "VIP", label: "INVITATION", swatch: "bg-seat-vip" }].map((i) => (
           <li key={i.k} className={`flex items-center gap-2 type-caption ${i.k === tier ? "rounded-sm border-2 border-border-brand px-1.5 py-0.5 font-bold text-text-strong" : "text-text-primary"}`}>
             <span className={`size-5 shrink-0 rounded-t-sm rounded-b-[3px] border border-border-default ${i.swatch}`} />
             {i.label}{i.k === tier && " · pilihanmu"}

@@ -49,6 +49,15 @@ export async function setChecked(id: string, checked: boolean | null): Promise<A
   return save("setChecked", supabase().from("orders").update({ checked }).eq("id", id).neq("status", "held").select("id"));
 }
 
+/** D-day: the buyer picked up the physical ticket (backend.md step 10). Only valid orders can be claimed. */
+export async function setClaimed(id: string, claimed: boolean): Promise<AdminResult> {
+  await requireAdmin();
+  if (typeof id !== "string" || !UUID.test(id)) return fail(NOT_FOUND);
+  if (typeof claimed !== "boolean") return fail(GENERIC);
+  const q = supabase().from("orders").update({ claimed_at: claimed ? new Date().toISOString() : null }).eq("id", id);
+  return save("setClaimed", (claimed ? q.eq("status", "valid") : q.neq("status", "held")).select("id"));
+}
+
 export async function updateBuyer(id: string, buyer: BuyerInput): Promise<AdminResult> {
   await requireAdmin();
   if (typeof id !== "string" || !UUID.test(id)) return fail(NOT_FOUND);
