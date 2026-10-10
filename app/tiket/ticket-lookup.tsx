@@ -73,7 +73,7 @@ export function TicketLookup() {
         // keyed + focused on mount so screen readers land on each new result (aria-live misses freshly mounted regions)
         <section key={ticket.code} ref={(el) => el?.focus()} tabIndex={-1} aria-label="Hasil cek tiket" className={`${CARD} focus:outline-none`}>
           <div className="absolute right-4 top-4 lg:right-8 lg:top-8">
-            <Stamp color={valid ? "green" : "red"} rotate={-10}>{valid ? "VALID" : "BATAL"}</Stamp>
+            <Stamp color={valid ? "green" : "red"} rotate={-10}>{valid ? "BERHASIL" : "BATAL"}</Stamp>
           </div>
           <div className="min-w-0 pt-10 lg:pt-0">
             <p className="type-caption text-text-secondary">Kode booking</p>
@@ -89,7 +89,7 @@ export function TicketLookup() {
             <div className="type-body-s flex items-center justify-between gap-3">
               <dt className="text-text-secondary">Status</dt>
               <dd className={`type-caption rounded-full border-2 px-3 py-1 ${valid ? "border-border-brand bg-bg-brand-soft text-text-brand" : "border-border-danger bg-bg-danger-soft text-text-danger"}`}>
-                {valid ? "Valid" : "Tidak berlaku"}
+                {valid ? "Berhasil dipesan" : "Tidak berlaku"}
               </dd>
             </div>
           </dl>

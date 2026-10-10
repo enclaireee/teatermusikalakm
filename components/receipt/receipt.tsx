@@ -50,7 +50,7 @@ export function Receipt({ ticket, ref }: { ticket: Ticket; ref?: React.Ref<HTMLD
         <div className="flex items-center gap-3">
           <span className="type-body-m text-text-secondary">Status tiket:</span>
           <span className={`type-label rounded-full border px-3 py-1 ${valid ? "border-border-brand bg-bg-brand-soft text-text-brand" : "border-border-danger bg-bg-danger-soft text-text-danger"}`}>
-            {valid ? "Valid" : "Tidak berlaku"}
+            {valid ? "Berhasil dipesan" : "Tidak berlaku"}
           </span>
         </div>
 

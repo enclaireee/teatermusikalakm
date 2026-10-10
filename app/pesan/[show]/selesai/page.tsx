@@ -57,12 +57,12 @@ export default function SelesaiPage() {
       <div className="relative mx-auto flex w-full max-w-[720px] flex-col items-center gap-6 rounded-lg border-2 border-border-default bg-bg-surface bg-paper p-6 pt-20 shadow-sticker-l lg:p-12 lg:pt-12">
         <Image src="/decorative-star.webp" alt="" width={72} height={72} className="animate-enter-scale absolute left-4 top-6 w-12 lg:left-20 lg:top-12 lg:w-[72px]" />
         <div className="absolute right-4 top-6 lg:right-12 lg:top-10">
-          <Stamp color="red" rotate={-10} className="animate-stamp [animation-delay:300ms]">VALID!</Stamp>
+          <Stamp color="red" rotate={-10} className="animate-stamp [animation-delay:300ms]">BERHASIL!</Stamp>
         </div>
         <div className="animate-pop flex size-28 items-center justify-center rounded-full border-[3px] border-border-default bg-bg-accent shadow-sticker">
           <Icon name="check-circle" size={64} className="text-text-brand" />
         </div>
-        <RevealText as="h1" text="Yeay, tiketmu sudah valid!" className="type-h2 lg:type-h1 text-balance text-center text-text-brand" />
+        <RevealText as="h1" text="Yeay, tiketmu berhasil dipesan!" className="type-h2 lg:type-h1 text-balance text-center text-text-brand" />
         <p data-reveal="up" className="type-body-l text-center text-text-primary">
           Bukti pembayaranmu sudah kami terima. PDF di bawah ini adalah tiket masukmu, jadi download dan simpan ya. Kode booking juga jangan sampai hilang, dipakai buat cek tiket.
         </p>
@@ -84,7 +84,7 @@ export default function SelesaiPage() {
           ))}
           <div className="type-body-s flex items-center justify-between gap-3">
             <dt className="text-text-secondary">Status</dt>
-            <dd className="type-caption rounded-full border-2 border-border-brand bg-bg-brand-soft px-3 py-1 text-text-brand">Valid</dd>
+            <dd className="type-caption rounded-full border-2 border-border-brand bg-bg-brand-soft px-3 py-1 text-text-brand">Berhasil dipesan</dd>
           </div>
         </dl>
 

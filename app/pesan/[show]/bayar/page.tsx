@@ -176,7 +176,10 @@ export default function BayarPage() {
         )}
 
         <div data-reveal="up" className="flex flex-col gap-5 lg:gap-6">
-        <h2 className="type-h4 text-text-strong">Upload bukti pembayaran</h2>
+        <div className="flex flex-col gap-1">
+          <h2 className="type-h4 text-text-strong">Upload bukti pembayaran</h2>
+          <p className="type-caption text-text-secondary">Bukti pembayaran akan diverifikasi secara manual oleh panitia. Mohon pastikan bukti yang diunggah sudah sesuai, karena tiket dengan bukti yang tidak sesuai akan dibatalkan.</p>
+        </div>
         <Upload
           accept="image/jpeg,image/png,application/pdf"
           file={file}
