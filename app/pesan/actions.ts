@@ -3,7 +3,7 @@
 // Checkout server actions. Every input is untrusted: validate here, let Postgres enforce the seat rules
 // (hold_seats / submit_order in backend.md), and return only shaped, user-facing results.
 import type { PayMethod } from "@/lib/booking";
-import { isShowId, type ShowId, type Tier } from "@/lib/event";
+import { isShowId, MAX_PROOF_BYTES, type ShowId, type Tier } from "@/lib/event"; // MAX_PROOF_BYTES must match the payment-proofs bucket limit
 import { SEATS } from "@/lib/seats";
 import { supabase } from "@/lib/supabase";
 import { checkField, validateBuyer } from "@/lib/validate";
@@ -36,7 +36,6 @@ export type Ticket = {
 export type LookupResult = { ok: true; ticket: Ticket } | { ok: false; error: string };
 
 const SALE_TIERS = ["Platinum", "Gold", "Silver", "Bronze"];
-const MAX_PROOF_BYTES = 3 * 1024 * 1024; // must match the payment-proofs bucket limit
 const PROOF_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "application/pdf": "pdf" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CODE = /^[A-HJ-NP-Z2-9]{5}$/;
@@ -91,6 +90,7 @@ function holdError(e: DbError): HoldResult {
     return { ok: false, error: `Kursi ${lost.join(", ")} baru saja diambil orang lain. Pilih kursi lain ya.`, lost };
   }
   if (e.message === "PRICE_NOT_SET") return fail("Kategori tiket ini belum dibuka. Coba lagi nanti ya.");
+  if (e.message === "QUOTA_FULL") return fail("Kuota kategori ini sudah habis. Kembali dan pilih kategori lain ya.");
   logError("hold_seats", e);
   return fail(GENERIC);
 }
@@ -111,7 +111,7 @@ export async function submitPayment(formData: FormData): Promise<SubmitResult> {
   if (typeof orderId !== "string" || !UUID.test(orderId)) return fail("Pesanan tidak ditemukan. Mulai pesan lagi ya.");
   if (method !== "qris" && method !== "transfer") return fail("Pilih metode pembayaran dulu.");
   if (!(proof instanceof File) || proof.size === 0) return fail("Unggah bukti pembayaran dulu.");
-  if (proof.size > MAX_PROOF_BYTES) return fail("Ukuran file maksimal 3 MB.");
+  if (proof.size > MAX_PROOF_BYTES) return fail("Ukuran file maksimal 1 MB.");
   const type = await sniffType(proof);
   if (!type) return fail("Format file harus JPG, PNG, atau PDF."); // stored with the sniffed type, not the declared one
 

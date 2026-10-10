@@ -41,7 +41,7 @@ export function Upload({ file, error, accept, onFile }: Props) {
 
   const tone = error ? "border-border-danger bg-bg-danger-soft" : over ? "border-border-brand bg-bg-accent-soft" : "border-border-default bg-bg-surface";
   const title = error ? "File tidak bisa dipakai" : "Upload bukti pembayaran";
-  const desc = error ?? "Tarik file ke sini atau pilih dari perangkat · JPG, PNG, PDF, maks. 3 MB";
+  const desc = error ?? "Tarik file ke sini atau pilih dari perangkat · JPG, PNG, PDF";
   return (
     <>
     {hidden}

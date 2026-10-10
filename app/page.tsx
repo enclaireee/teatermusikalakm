@@ -57,7 +57,7 @@ export default function Home() {
         <section id="jadwal" className={`${SECTION} scroll-mt-20 overflow-hidden`}>
           <div className={`${INNER} flex flex-col items-center gap-6 lg:gap-10`}>
             <div className="flex flex-col items-center gap-2 text-center">
-              <RevealText as="h2" text="Pilih jadwal nontonmu" className="type-h2 lg:type-h1 text-text-brand" />
+              <RevealText as="h2" text="Pilih Jadwal Nontonmu" className="type-h2 lg:type-h1 text-text-brand" />
               <p data-reveal="up" style={{ "--d": "150ms" } as React.CSSProperties} className="type-body-l text-text-secondary">Pilih show, isi data, pilih kursi, bayar. Maks. {MAX_TICKETS} tiket per transaksi.</p>
             </div>
             <div data-reveal-stagger data-reveal="scale" className="grid w-full grid-cols-1 gap-4 lg:max-w-[1120px] lg:grid-cols-2 lg:gap-8">
@@ -65,7 +65,7 @@ export default function Home() {
               <ShowCard id="2" />
             </div>
             <div className="flex w-full flex-col items-center gap-4">
-              <RevealText as="h2" text="Kategori & harga tiket" className="type-h3 lg:type-h2 text-center text-text-strong" />
+              <RevealText as="h2" text="Kategori & Harga Tiket" className="type-h3 lg:type-h2 text-center text-text-strong" />
               <Suspense fallback={<TierList />}>
                 <TierCards />
               </Suspense>

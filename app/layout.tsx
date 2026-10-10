@@ -11,9 +11,9 @@ const kirang = Kirang_Haerang({ weight: "400", subsets: ["latin"], variable: "--
 const bootzy = localFont({ src: "./fonts/BootzyTM.woff2", weight: "400 700", variable: "--font-bootzy", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Teater Musikal Aku, Kau & Musik", template: "%s · Aku, Kau & Musik" },
+  title: { default: "Teater Musikal Aku Kau & Musik", template: "%s · Aku Kau & Musik" },
   description:
-    "Beli tiket Teater Musikal Aku, Kau & Musik — Kamis, 29 Oktober 2026 di Makara Art Center UI. Presented by Juzzer × Stage Universitas Indonesia.",
+    "Beli tiket Teater Musikal Aku Kau & Musik — Kamis, 29 Oktober 2026 di Makara Art Center UI. Presented by Juzzer × Stage Universitas Indonesia.",
   icons: { icon: "/logo-akm.webp", apple: "/logo-akm.webp" },
 };
 

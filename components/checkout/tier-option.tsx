@@ -7,6 +7,7 @@ type Props = { name: string; info: TierAvailability | undefined; extraLeft?: num
 
 /** Radio card for one sale tier; sold-out or not-on-sale tiers are disabled. */
 export function TierOption({ name, info, extraLeft = 0, tier, presale, checked, onChange }: Props) {
+  const named = !!info?.name && info.name !== tier;
   const price = info?.price ?? null;
   const left = (info?.left ?? 0) + (info ? extraLeft : 0);
   const disabled = price === null || left <= 0;
@@ -24,12 +25,12 @@ export function TierOption({ name, info, extraLeft = 0, tier, presale, checked, 
       <span aria-hidden="true" className={`flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 bg-bg-surface ${checked ? "border-border-brand" : disabled ? "border-border-subtle" : "border-border-default"}`}>
         {checked && <span className="size-2.5 animate-pop rounded-full bg-bg-brand" />}
       </span>
-      <span aria-hidden="true" className={`type-label flex size-9 shrink-0 items-center justify-center rounded-sm border-2 border-border-default text-text-strong ${TIER_BG[tier]} ${disabled ? "opacity-40" : ""}`}>
+      <span aria-hidden="true" className={`type-label flex size-9 shrink-0 items-center justify-center rounded-sm border-2 border-border-default ${TIER_BG[tier]} ${disabled ? "opacity-40" : ""}`}>
         {tier.charAt(0)}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className={`type-h4 ${disabled ? "text-text-disabled" : "text-text-strong"}`}>{tier}</span>
-        {info?.name && info.name !== tier && <span className={`type-label ${muted}`}>{info.name}</span>}
+        <span className={`type-h4 ${disabled ? "text-text-disabled" : "text-text-strong"}`}>{named ? info.name : tier}</span>
+        {named && <span className={`type-label ${muted}`}>{tier}</span>}
         <span className={`type-caption ${muted}`}>{TIERS[tier].title} · {TIERS[tier].rows}</span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">

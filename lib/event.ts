@@ -1,8 +1,8 @@
 // Event facts (from the DESIGN page proposals) and ticket rules shared by every screen.
 
 export const EVENT = {
-  name: "Aku, Kau & Musik",
-  fullName: "Teater Musikal Aku, Kau & Musik",
+  name: "Aku Kau & Musik",
+  fullName: "Teater Musikal Aku Kau & Musik",
   theme: "Harmoni Asa dan Musik",
   presentedBy: "Presented by Juzzer × Stage Universitas Indonesia",
   date: "Kamis, 29 Oktober 2026",
@@ -44,7 +44,8 @@ export const TIERS: Record<Tier, { title: string; rows: string }> = {
 export const SALE_TIERS: Tier[] = ["Platinum", "Gold", "Silver", "Bronze"];
 export const MAX_TICKETS = 4;
 export const HOLD_MINUTES = 10;
-export const MAX_PROOF_BYTES = 3 * 1024 * 1024;
+export const MAX_PROOF_BYTES = 1024 * 1024;
+export const MAX_PROOF_INPUT_BYTES = 15 * 1024 * 1024; // largest image accepted before client-side compression
 export const PROOF_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 
 export const BANK = { name: "Blu by BCA", account: "0024 2879 9648", holder: "Hana Dwi Lathifah" } as const;

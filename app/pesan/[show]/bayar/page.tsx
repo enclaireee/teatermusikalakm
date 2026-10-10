@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { submitPayment } from "@/app/pesan/actions";
 import { BottomBar, CheckoutCard, CheckoutShell, OrderSummary, stepHref, useOrderLines, useStepGuard, type Cta } from "@/components/checkout/shell";
 import { CopyButton } from "@/components/checkout/copy-button";
@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { PaymentOption } from "@/components/ui/payment-option";
 import { Upload } from "@/components/ui/upload";
 import { useBooking, type PayMethod } from "@/lib/booking";
-import { BANK, HOLD_MINUTES, MAX_PROOF_BYTES, PROOF_TYPES } from "@/lib/event";
+import { BANK, HOLD_MINUTES, MAX_PROOF_BYTES, MAX_PROOF_INPUT_BYTES, PROOF_TYPES } from "@/lib/event";
+import { compressImage } from "@/lib/compress-image";
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -29,6 +30,7 @@ export default function BayarPage() {
   const [submitError, setSubmitError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null); // kept in memory only, never persisted
+  const pick = useRef(0); // increments per file pick so stale compressions are ignored
 
   useEffect(() => {
     const tick = () => setNow(Date.now());
@@ -65,12 +67,23 @@ export default function BayarPage() {
     );
   }
 
-  function onFile(f: File) {
+  async function onFile(f: File) {
+    const id = ++pick.current;
     setSubmitError(undefined);
+    setFile(null); // disables submit while processing
+    const tooBig = "File terlalu besar. Kirim screenshot bukti bayarnya ya.";
     if (!PROOF_TYPES.includes(f.type)) return reject("Format harus JPG, PNG, atau PDF.");
-    if (f.size > MAX_PROOF_BYTES) return reject("Maksimal 3 MB. Kompres foto atau pilih file lain.");
+    let out = f;
+    if (f.type === "application/pdf") {
+      if (f.size > MAX_PROOF_BYTES) return reject("PDF maksimal 1 MB. Kirim screenshot bukti bayarnya saja ya.");
+    } else {
+      if (f.size > MAX_PROOF_INPUT_BYTES) return reject(tooBig);
+      out = await compressImage(f);
+      if (id !== pick.current) return; // a newer pick superseded this one
+      if (out.size > MAX_PROOF_BYTES) return reject(tooBig);
+    }
     setFileError(undefined);
-    setFile(f);
+    setFile(out);
   }
   function reject(msg: string) {
     setFileError(msg);

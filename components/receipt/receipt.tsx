@@ -24,12 +24,13 @@ export function Receipt({ ticket, ref }: { ticket: Ticket; ref?: React.Ref<HTMLD
     ["Detail Acara", [["Show", s.label], ["Tanggal", EVENT.dateShort], ["Jam", `${s.time.replace(" – ", "–")} WIB`], ["Lokasi", EVENT.venue]]],
   ] as const;
 
+  // no bg-paper here: html-to-image can't embed its SVG noise and the PDF background turns black
   return (
-    <div ref={ref} className="relative flex min-h-[1131px] w-[800px] flex-col overflow-hidden border border-border-default bg-bg-surface bg-paper">
+    <div ref={ref} className="relative flex min-h-[1131px] w-[800px] flex-col overflow-hidden border border-border-default bg-bg-surface">
       <header className="flex items-center justify-between bg-bg-brand px-10 py-8">
         <div className="flex items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element -- plain eager <img> so html-to-image captures it reliably */}
-          <img src="/logo-akm.webp" alt="Logo Aku, Kau & Musik" width={104} height={77} loading="eager" />
+          <img src="/logo-akm.webp" alt="Logo Aku Kau & Musik" width={104} height={77} loading="eager" />
           <div>
             <h1 className="type-h1 text-text-accent">E-TIKET</h1>
             <p className="type-body-m text-text-on-brand">{EVENT.fullName}</p>

@@ -52,14 +52,14 @@
   --color-border-danger: #c10000;
   --color-border-accent: #faf015;
 
-  /* color/seat/* (committee ticket colours: Platinum ungu, Gold kuning, Silver biru, Bronze orange) */
-  --color-seat-platinum: #a98ae6; /* darker than Silver's blue so they separate under red-green colour blindness */
-  --color-seat-gold: #fff27a;
-  --color-seat-silver: #8ec5f5;
-  --color-seat-bronze: #f7b77a;
-  --color-seat-vip: #dcdcdc; /* not sold: neutral so it never reads as Gold */
-  --color-seat-selected: #007c38;
-  --color-seat-taken: #707070;
+  /* color/seat/* (committee seat plan colours: Platinum olive, Gold green, Silver light green, Bronze dark green) */
+  --color-seat-platinum: #abb602;
+  --color-seat-gold: #52b206;
+  --color-seat-silver: #5cbd8f;
+  --color-seat-bronze: #007d38;
+  --color-seat-vip: #929292; /* not sold: neutral gray */
+  --color-seat-selected: #c10000; /* red so it never reads as dark-green Bronze */
+  --color-seat-taken: #404040;
   --color-seat-stage: #f4a3a3;
 
   /* radius/* */

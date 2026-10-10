@@ -25,7 +25,7 @@ export type Booking = {
   paidAt: number | null;
 };
 
-const EMPTY: Booking = { buyer: null, tier: null, tierName: null, price: null, qty: 2, seats: [], orderId: null, heldSeats: [], holdUntil: null, priceChanged: false, total: null, method: "qris", code: null, paidAt: null };
+const EMPTY: Booking = { buyer: null, tier: null, tierName: null, price: null, qty: 1, seats: [], orderId: null, heldSeats: [], holdUntil: null, priceChanged: false, total: null, method: "qris", code: null, paidAt: null };
 
 type Ctx = {
   show: ShowId;

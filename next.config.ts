@@ -4,8 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
     agentFeedback: true,
-    // 3 MB payment proof + multipart overhead goes through the submitPayment action.
-    serverActions: { bodySizeLimit: "4mb" },
+    // 1 MB payment proof + multipart overhead goes through the submitPayment action.
+    serverActions: { bodySizeLimit: "2mb" },
   },
   async redirects() {
     return [{ source: "/about", destination: "/#tentang", permanent: false }];

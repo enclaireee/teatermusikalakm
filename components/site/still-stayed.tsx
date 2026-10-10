@@ -1,7 +1,7 @@
 import { Arrow, Burst, Scribble, Swoosh, Tape } from "@/components/site/hero-art";
 import { INNER } from "@/components/site/decor";
 
-const DONE = ["tidur cukup", "saldo aman sampai akhir bulan", "kelas jadi (udah nyampe kampus)", "UKT masuk akal", "deadline santai", "nongkrong tiap weekend"];
+const DONE = ["tidur cukup", "saldo aman sampai akhir bulan", "Kelas Ontime", "UKT masuk akal", "deadline santai", "nongkrong tiap weekend"];
 const CLIP = "[clip-path:polygon(0%_2.5%,4%_0%,9%_2%,15%_0.5%,22%_2.5%,30%_0%,38%_2%,47%_0.5%,55%_2.5%,63%_0%,71%_2%,80%_0.5%,88%_2.5%,95%_0%,100%_2%,100%_100%,0%_100%)]";
 
 /** Static dark "zine page": a ticked-off notebook list and the big statement. No motion beyond reveal + marker draw. */
