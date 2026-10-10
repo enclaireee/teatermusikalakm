@@ -74,7 +74,7 @@ export function OrderSummary({ cta, note }: { cta?: Cta; note?: string }) {
       <h2 className="type-h3 text-text-brand">Ringkasan Pesanan</h2>
       <div className="flex items-center gap-3">
         <div className="flex size-16 shrink-0 items-center justify-center rounded-md border-2 border-border-default bg-bg-brand">
-          <Image src="/logo-akm.webp" alt="" width={700} height={516} className="w-13" />
+          <Image src="/logo-akm.webp" alt="" width={700} height={516} sizes="52px" className="w-13" />
         </div>
         <div>
           <p className="type-body-m text-text-strong">{EVENT.name}</p>

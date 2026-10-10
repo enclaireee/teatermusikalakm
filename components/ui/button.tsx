@@ -19,11 +19,12 @@ type Props = {
   loading?: boolean;
   fullWidth?: boolean;
   href?: string;
+  flat?: boolean; // no sticker shadow or press movement (admin)
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className">;
 
-export function Button({ variant = "primary", icon, iconStart, loading, fullWidth, href, children, disabled, type = "button", ...rest }: Props) {
+export function Button({ variant = "primary", icon, iconStart, loading, fullWidth, flat, href, children, disabled, type = "button", ...rest }: Props) {
   const off = disabled || loading;
-  const cls = `type-label-button inline-flex min-h-11 whitespace-nowrap text-center items-center justify-center gap-2 rounded-md px-6 py-4 transition-[background-color,box-shadow,translate,color] duration-(--duration-base) ease-(--ease-out-soft) hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-sticker-s ${VARIANT[variant]} ${DISABLED} ${fullWidth ? "w-full" : ""}`;
+  const cls = `type-label-button inline-flex min-h-11 whitespace-nowrap text-center items-center justify-center gap-2 rounded-md px-6 py-4 transition-[background-color,box-shadow,translate,color] duration-(--duration-base) ease-(--ease-out-soft) ${flat ? "" : "hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5 active:shadow-sticker-s"} ${flat ? VARIANT[variant].replace(/\S*shadow-sticker\S*/g, "") : VARIANT[variant]} ${DISABLED} ${fullWidth ? "w-full" : ""}`;
   const content = loading ? (
     <>
       <span className="animate-enter-scale inline-flex"><Icon name="loader" size={20} className="animate-spin" /></span>

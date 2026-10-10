@@ -1,0 +1,69 @@
+/* Hero valance + side drapes (decor.tsx). Global CSS, like curtain-loader.css. */
+.drape-fabric {
+  --pleat: 5px;
+  background-color: var(--color-bg-danger);
+  background-image:
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-border-default) 40%, transparent), transparent 28%, transparent 68%, color-mix(in srgb, var(--color-border-default) 45%, transparent)),
+    repeating-linear-gradient(
+      90deg,
+      var(--color-bg-danger-strong) 0,
+      var(--color-bg-danger) calc(var(--pleat) * 1.5),
+      color-mix(in srgb, var(--color-bg-danger), var(--color-text-on-brand) 14%) calc(var(--pleat) * 2.5),
+      var(--color-bg-danger) calc(var(--pleat) * 3.6),
+      var(--color-bg-danger-strong) calc(var(--pleat) * 4.8)
+    );
+}
+@media (min-width: 768px) {
+  .drape-fabric { --pleat: 8px; }
+}
+@media (min-width: 1024px) {
+  .drape-fabric { --pleat: 12px; }
+}
+
+/* clip-path eats borders, so outline the clipped shape with drop-shadows. */
+.drape {
+  filter: drop-shadow(2px 0 0 var(--color-border-default)) drop-shadow(-2px 0 0 var(--color-border-default));
+}
+.drape-cloth {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 38%, 78% 50%, 56% 60%, 52% 64%, 58% 68%, 80% 82%, 100% 94%, 100% 100%, 0 100%);
+}
+/* Hem + dashed gold fringe */
+.drape-cloth::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 10px;
+  border-top: 2px solid var(--color-border-default);
+  background: repeating-linear-gradient(90deg, var(--color-bg-accent) 0 3px, transparent 3px 8px) bottom / 100% 4px no-repeat,
+    var(--color-bg-danger-strong);
+}
+.drape-tie {
+  position: absolute;
+  top: 60%;
+  left: 0;
+  width: 52%;
+  height: clamp(8px, 1.2vw, 14px);
+  transform: translateY(-50%);
+  border: 2px solid var(--color-border-default);
+  border-radius: 999px;
+  background: var(--color-bg-accent);
+}
+
+/* Valance */
+.valance-trim {
+  height: 6px;
+  background: var(--color-bg-accent);
+  border-bottom: 2px solid var(--color-border-default);
+}
+.valance-band {
+  height: 28px;
+  border-bottom: 2px solid var(--color-border-default);
+}
+@media (min-width: 1024px) {
+  .valance-band { height: 56px; }
+}
+.valance-stop-a { stop-color: var(--color-bg-danger-strong); }
+.valance-stop-b { stop-color: var(--color-bg-danger); }
+.valance-stop-c { stop-color: color-mix(in srgb, var(--color-bg-danger), var(--color-text-on-brand) 14%); }

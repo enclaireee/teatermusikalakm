@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { Navbar } from "@/components/site/navbar";
@@ -9,10 +10,42 @@ import { StillStayed } from "@/components/site/still-stayed";
 import { ShowCard } from "@/components/site/show-card";
 import { TierCard } from "@/components/site/tier-card";
 import { RevealText } from "@/components/site/reveal-text";
-import { MAX_TICKETS, SALE_TIERS } from "@/lib/event";
+import { EVENT, MAX_TICKETS, SALE_TIERS, SHOWS, SITE_URL, type ShowId } from "@/lib/event";
 import { getAvailability } from "@/lib/availability";
 
-const fmtUntil = (iso: string) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
+const DESCRIPTION = `Beli tiket ${EVENT.fullName} — ${EVENT.date} di ${EVENT.venueShort}. ${EVENT.presentedBy}.`;
+
+// "15.00 – 17.00" -> "2026-10-29T15:00:00+07:00" (WIB)
+const iso = (t: string) => `2026-10-29T${t.trim().replace(".", ":")}:00+07:00`;
+
+const JSON_LD = (Object.keys(SHOWS) as ShowId[]).map((id) => {
+  const [start, end] = SHOWS[id].time.split("–");
+  return {
+    "@context": "https://schema.org",
+    "@type": "TheaterEvent",
+    name: `${EVENT.fullName} — ${SHOWS[id].label}`,
+    description: DESCRIPTION,
+    startDate: iso(start),
+    endDate: iso(end),
+    eventStatus: "https://schema.org/EventScheduled",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    inLanguage: "id",
+    image: `${SITE_URL}/opengraph-image.png`,
+    location: {
+      "@type": "Place",
+      name: "Makara Art Center Universitas Indonesia",
+      address: { "@type": "PostalAddress", addressLocality: "Depok", addressRegion: "Jawa Barat", addressCountry: "ID" },
+    },
+    organizer: { "@type": "Organization", name: "Stage UI", url: SITE_URL },
+    performer: { "@type": "MusicGroup", name: "Juzzer" },
+    offers: {
+      "@type": "Offer",
+      url: `${SITE_URL}/pesan/${id}/pilih-tiket`,
+      priceCurrency: "IDR",
+      availability: "https://schema.org/InStock",
+    },
+  };
+});
 
 async function TierCards() {
   await connection(); // request-time only, never baked into the static shell
@@ -25,7 +58,7 @@ async function TierCards() {
   return (
     <>
       <TierList a={a} />
-      {a?.presale.active && a.presale.until && <p className="type-caption text-center text-text-secondary">Harga presale sampai {fmtUntil(a.presale.until)}.</p>}
+      {a?.presale.active && <p className="type-caption text-center text-text-secondary">Harga presale.</p>}
     </>
   );
 }
@@ -45,9 +78,13 @@ function TierList({ a }: { a?: Awaited<ReturnType<typeof getAvailability>> }) {
   );
 }
 
+// Canonical lives here, not in the root layout, so other routes don't inherit "/" as their canonical.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
 export default function Home() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD).replace(/</g, "\\u003c") }} />
       <Navbar current="/" />
       <main>
         <Hero />

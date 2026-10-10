@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BookingProvider } from "@/lib/booking";
 import { isShowId } from "@/lib/event";
+
+export const metadata: Metadata = { title: "Pesan Tiket", robots: { index: false, follow: false } };
 
 export function generateStaticParams() {
   return [{ show: "1" }, { show: "2" }];

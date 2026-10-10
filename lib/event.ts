@@ -11,6 +11,11 @@ export const EVENT = {
   venueShort: "Makara Art Center UI",
 } as const;
 
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")
+).replace(/\/+$/, "");
+
 export const CONTACT = {
   instagram: "@stage.ui",
   tiktok: "@stage.ui",

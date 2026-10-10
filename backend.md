@@ -2,9 +2,15 @@
 
 The checkout's source of truth lives in Supabase: seat holds, orders and payment proofs. The Next.js server talks to it with the **secret key** only (server actions in `app/pesan/actions.ts`, the API route `app/api/show/[show]`). The browser never talks to Supabase directly, so every table is locked down (RLS on, no policies, no grants to `anon`/`authenticated`).
 
-**Numbered steps (1–6) are the only SQL you must run**: in order, in Supabase Dashboard → **SQL Editor**, one new query per step, paste, Run. Every numbered step is safe to re-run. Everything after them (checks, changing prices or quotas, maintenance) is unnumbered: run it only when you need it.
+**Numbered steps (1–9) are the only SQL you must run**: in order, in Supabase Dashboard → **SQL Editor**, one new query per step, paste, Run. Every numbered step is safe to re-run. Everything after them (checks, changing prices or quotas, maintenance) is unnumbered: run it only when you need it.
 
-> **Already ran the old version of this doc (steps 1–7)?** Those are steps 1–5 now. Run **step 6** only.
+> **Already ran the old version of this doc (steps 1–7)?** Those are steps 1–5 now. Run **step 6** and **step 7**.
+>
+> **Already ran steps 1–6?** Run **step 7** and **step 8**.
+>
+> **Already ran steps 1–7?** Run **step 8** and **step 9**.
+>
+> **Already ran steps 1–8?** Run **step 9** only (rate limiting).
 
 How it works, in short:
 
@@ -13,7 +19,8 @@ How it works, in short:
 - `hold_seats` creates an order (status `held`) and claims the seats atomically. If someone else got a seat first it fails with `SEATS_TAKEN` and lists the lost seats in the error detail.
 - `submit_order` turns a live hold into a paid order (status `valid`), clears the hold timer and generates the 5-character booking code.
 - Admins may later set an order to `invalid`; its seats stay locked.
-- Ticket categories live in the `tiers` table, keyed `Platinum`, `Gold`, `Silver`, `Bronze` (each is a fixed seat area in `lib/seats.ts`), with a marketing name and a presale and normal price. The presale end time lives in the single-row `settings` table. `tier_price()` picks the presale price before that time, otherwise the normal price; a ticket category without a price cannot be booked.
+- The admin panel (`/admin`, step 7) has its own **admin-only** check, `orders.checked` (empty = not reviewed, true = valid, false = not valid). Buyers never see it; it does not change `status`.
+- Ticket categories live in the `tiers` table, keyed `Platinum`, `Gold`, `Silver`, `Bronze` (each is a fixed seat area in `lib/seats.ts`), with a marketing name and a presale and normal price. Whether presale is on is a manual switch (`settings.presale`, toggled on `/admin`, step 8). `tier_price()` picks the presale price while it is on, otherwise the normal price; a ticket category without a price cannot be booked.
 - Each category also has a **quota per show**: `quota_presale` and `quota_sale`. During presale at most `quota_presale` seats of that category can be taken per show; after presale the limit is `quota_presale + quota_sale`, so unsold presale tickets move to the sale. "Taken" counts paid, invalid and live-held seats. `hold_seats` checks the quota under a lock, so two buyers can never both get the last ticket.
 - Broken seats have `seats.blocked = true`: they are never sold and the site shows them as taken.
 
@@ -127,7 +134,7 @@ on conflict (tier) do update set
   price_normal  = coalesce(t.price_normal, excluded.price_normal);
 ```
 
-The presale end date starts empty (`settings.presale_until = null`), so normal prices apply until you set it (see **Change categories, prices, presale, quotas**).
+Presale starts off, so normal prices apply until you switch it on in `/admin` (step 8).
 
 ## 3. Seat seed (idempotent)
 
@@ -183,6 +190,8 @@ on conflict (show_id, seat_id) do update set tier = excluded.tier;
 ```
 
 ## 4. Functions (idempotent)
+
+> **Already ran step 8?** Re-run step 8 right after this step (it replaces `tier_price` with the presale switch version).
 
 All business rules run inside Postgres so two buyers can never get the same seat. Each function is locked down right after it is created (Supabase auto-grants new functions to `anon`/`authenticated`), so only the server (secret key = `service_role`) can call them. `hold_seats`, `submit_order` and `show_availability` are in step 6, together with the quotas they enforce.
 
@@ -245,6 +254,8 @@ To view a proof: Dashboard → **Storage** → `payment-proofs` → open the sho
 Proofs are untrusted uploads from strangers: open them only in a sandboxed viewer (e.g. the browser's built-in PDF/image viewer), never in a desktop PDF reader with scripting enabled.
 
 ## 6. Ticket quotas & broken seats (idempotent)
+
+> **Already ran step 8?** Re-run step 8 right after this step (it replaces `tier_cap`, `hold_seats` and `show_availability` with the presale switch versions).
 
 Quota per ticket category, **per show** (committee numbers):
 
@@ -492,6 +503,437 @@ revoke all on function public.show_availability(smallint) from public, anon, aut
 grant execute on function public.show_availability(smallint) to service_role;
 ```
 
+## 7. Admin panel (idempotent)
+
+The admin panel lives at `/admin`. No page on the site links to it, and it asks for a login first (`ADMIN_USER` / `ADMIN_PASSWORD`, see [Environment variables](#environment-variables)). It lists every paid order (status `valid` or `invalid`; unpaid holds are left out), shows the payment proof, and can mark an order checked, edit the buyer, move seats and delete orders.
+
+- **Checked** (`orders.checked`) is only for the committee's own review. It does not change `status`, so the buyer's "Cek tiket" page and the door check are unaffected.
+- **Move seats** keeps the same show, ticket category and number of seats, so the price and quota never change. Done atomically by `move_seats` below: if someone grabs a target seat first, nothing moves.
+- **Delete** removes the order and its payment proof. Its seats become free and can be bought again. Done by `delete_order` below, which locks the seats in the same order as the other functions so it never deadlocks with a buyer.
+
+```sql
+-- Admin-only review mark: null = not reviewed yet, true = valid, false = not valid. Never shown to buyers.
+alter table public.orders add column if not exists checked boolean;
+
+-- Move a paid (or invalid) order to other seats: same show, same ticket category, same number of seats.
+-- Errors: ORDER_NOT_FOUND, ORDER_NOT_PAID (still a hold), BAD_SEATS (wrong count, duplicate, unknown seat or
+-- another category), SEATS_TAKEN (detail = taken seat ids, comma separated; broken seats also fail this way).
+create or replace function public.move_seats(p_order uuid, p_seats text[])
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_order public.orders;
+  v_taken text[];
+begin
+  -- Same lock order as hold_seats / submit_order: the order row, then seat rows in a fixed order.
+  select * into v_order from public.orders where id = p_order for update;
+  if not found then
+    raise exception 'ORDER_NOT_FOUND';
+  end if;
+  if v_order.status = 'held' then
+    raise exception 'ORDER_NOT_PAID';
+  end if;
+  if coalesce(cardinality(p_seats), 0) <> v_order.qty or array_position(p_seats, null) is not null
+     or (select count(distinct s) from unnest(p_seats) s) <> v_order.qty then
+    raise exception 'BAD_SEATS';
+  end if;
+
+  perform 1 from public.seats
+   where (show_id = v_order.show_id and seat_id = any (p_seats)) or order_id = p_order
+   order by show_id, seat_id
+   for update;
+
+  if (select count(*) from public.seats
+       where show_id = v_order.show_id and seat_id = any (p_seats) and tier = v_order.tier) <> v_order.qty then
+    raise exception 'BAD_SEATS';
+  end if;
+
+  v_taken := array(
+    select seat_id from public.seats
+     where show_id = v_order.show_id and seat_id = any (p_seats)
+       and (blocked or (order_id is not null and order_id <> p_order and (held_until is null or held_until > now())))
+     order by seat_id);
+  if cardinality(v_taken) > 0 then
+    raise exception 'SEATS_TAKEN' using detail = array_to_string(v_taken, ',');
+  end if;
+
+  update public.seats set order_id = null, held_until = null
+   where order_id = p_order and seat_id <> all (p_seats);
+  update public.seats set order_id = p_order, held_until = null
+   where show_id = v_order.show_id and seat_id = any (p_seats);
+end;
+$$;
+revoke all on function public.move_seats(uuid, text[]) from public, anon, authenticated;
+grant execute on function public.move_seats(uuid, text[]) to service_role;
+
+-- Delete a paid (or invalid) order and free its seats. Returns the payment proof path (the server
+-- removes that file; Supabase blocks deleting storage files from SQL). Errors: ORDER_NOT_FOUND.
+create or replace function public.delete_order(p_order uuid)
+returns text
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_proof text;
+begin
+  select proof_path into v_proof from public.orders where id = p_order and status <> 'held' for update;
+  if not found then
+    raise exception 'ORDER_NOT_FOUND';
+  end if;
+  perform 1 from public.seats where order_id = p_order order by show_id, seat_id for update;
+  update public.seats set order_id = null, held_until = null where order_id = p_order;
+  delete from public.orders where id = p_order;
+  return v_proof;
+end;
+$$;
+revoke all on function public.delete_order(uuid) from public, anon, authenticated;
+grant execute on function public.delete_order(uuid) to service_role;
+```
+
+## 8. Manual presale switch (idempotent)
+
+Presale is now a manual switch on `/admin` ("Presale" / "Harga normal") instead of an end date. While it is on, every ticket category with a presale price sells at that price and the presale quotas apply; switching it off moves to the normal prices and full quotas immediately. Each order also remembers whether it was bought at the presale price (`orders.presale`), shown in the admin panel.
+
+- `settings.presale_until` is retired: this step carries a still-running presale over into the switch once and clears the date. The column stays so older steps keep working.
+- This step replaces `tier_price`, `tier_cap`, `show_availability` and `hold_seats`. **If you ever re-run step 4 or 6, re-run this step and then step 9 right after.**
+
+```sql
+-- The switch. Off by default (normal prices).
+alter table public.settings add column if not exists presale boolean not null default false;
+-- Carry over a presale that was still running by date, then retire the date (no-op on a re-run).
+update public.settings set presale = (presale_until > now()), presale_until = null where presale_until is not null;
+
+-- Did this order get the presale price? Set by hold_seats; old orders backfilled below.
+alter table public.orders add column if not exists presale boolean;
+update public.orders o
+   set presale = (t.price_presale is not null and t.price_presale <> t.price_normal and o.total = o.qty * t.price_presale)
+  from public.tiers t
+ where t.tier = o.tier and o.presale is null;
+
+create or replace function public.presale_active()
+returns boolean
+language sql stable
+set search_path = ''
+as $$
+  select coalesce((select s.presale from public.settings s), false);
+$$;
+revoke all on function public.presale_active() from public, anon, authenticated;
+grant execute on function public.presale_active() to service_role;
+
+-- Current price of a ticket category: the presale price while presale is on (if it has one), else the normal price.
+-- null = not on sale.
+create or replace function public.tier_price(p_tier text)
+returns int
+language sql stable
+set search_path = ''
+as $$
+  select case when t.price_presale is not null and public.presale_active() then t.price_presale else t.price_normal end
+    from public.tiers t
+   where t.tier = p_tier;
+$$;
+revoke all on function public.tier_price(text) from public, anon, authenticated;
+grant execute on function public.tier_price(text) to service_role;
+
+-- How many seats of a ticket category one show may have taken right now:
+-- quota_presale while presale is on, quota_presale + quota_sale after it. quota_presale null = no quota.
+create or replace function public.tier_cap(p_tier text)
+returns int
+language sql stable
+set search_path = ''
+as $$
+  select case when public.presale_active()
+              then t.quota_presale
+              else t.quota_presale + coalesce(t.quota_sale, 0) end
+    from public.tiers t
+   where t.tier = p_tier;
+$$;
+revoke all on function public.tier_cap(text) from public, anon, authenticated;
+grant execute on function public.tier_cap(text) to service_role;
+
+-- Same as step 6, plus orders.presale.
+create or replace function public.hold_seats(
+  p_show smallint, p_tier text, p_seats text[],
+  p_name text, p_email text, p_phone text, p_org text,
+  p_prev_order uuid default null
+) returns table (order_id uuid, held_until timestamptz, total int)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_qty   int := coalesce(cardinality(p_seats), 0);
+  v_price int;
+  v_cap   int;
+  v_taken int;
+  v_id    uuid;
+  v_until timestamptz := now() + interval '10 minutes';
+  v_got   text[];
+  v_lost  text[];
+begin
+  if p_show is null or p_show not in (1, 2) then
+    raise exception 'INVALID_SHOW';
+  end if;
+  if v_qty not between 1 and 4 or array_position(p_seats, null) is not null then
+    raise exception 'INVALID_QTY';
+  end if;
+  if (select count(distinct s) from unnest(p_seats) s) <> v_qty then
+    raise exception 'DUPLICATE_SEATS';
+  end if;
+  v_price := public.tier_price(p_tier);
+  if v_price is null then
+    raise exception 'PRICE_NOT_SET';
+  end if;
+
+  -- Lock the ticket category first: holds of one category wait for each other here, so the quota
+  -- count below can't be raced. Then the order row, then seat rows in a fixed order (same as submit_order),
+  -- so concurrent holds and payments wait for each other instead of deadlocking.
+  perform 1 from public.tiers where tier = p_tier for update;
+  perform 1 from public.orders where id = p_prev_order for update;
+  perform 1 from public.seats
+   where (show_id = p_show and seat_id = any (p_seats)) or order_id = p_prev_order
+   order by show_id, seat_id
+   for update;
+
+  -- Release the buyer's previous hold, but only while it is still unpaid.
+  if exists (select 1 from public.orders where id = p_prev_order and status = 'held') then
+    update public.seats set order_id = null, held_until = null where order_id = p_prev_order;
+    delete from public.orders where id = p_prev_order;
+  end if;
+
+  -- Quota: seats of this category already taken in this show (paid, invalid or live hold) plus this hold.
+  v_cap := public.tier_cap(p_tier);
+  if v_cap is not null then
+    select count(*) into v_taken
+      from public.seats
+     where show_id = p_show and tier = p_tier
+       and order_id is not null and (held_until is null or held_until > now());
+    if v_taken + v_qty > v_cap then
+      raise exception 'QUOTA_FULL';
+    end if;
+  end if;
+
+  -- presale = this order got the presale price. Derived from v_price (the price actually charged), so it always
+  -- matches the total even if the switch flips mid-hold; same rule as the backfill above.
+  insert into public.orders (show_id, tier, qty, buyer_name, buyer_email, buyer_phone, buyer_org, total, held_until, presale)
+  values (p_show, p_tier, v_qty, p_name, p_email, p_phone, nullif(p_org, ''), v_price * v_qty, v_until,
+          (select coalesce(t.price_presale <> t.price_normal and v_price = t.price_presale, false)
+             from public.tiers t where t.tier = p_tier))
+  returning id into v_id;
+
+  with claimed as (
+    update public.seats
+       set order_id = v_id, held_until = v_until
+     where show_id = p_show
+       and seat_id = any (p_seats)
+       and tier = p_tier
+       and not blocked
+       and (order_id is null or held_until < now())
+    returning seat_id
+  )
+  select coalesce(array_agg(seat_id), '{}') into v_got from claimed;
+
+  if cardinality(v_got) <> v_qty then
+    v_lost := array(select s from unnest(p_seats) s where s <> all (v_got) order by s);
+    raise exception 'SEATS_TAKEN' using detail = array_to_string(v_lost, ',');
+  end if;
+
+  return query select v_id, v_until, v_price * v_qty;
+end;
+$$;
+revoke all on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid) from public, anon, authenticated;
+grant execute on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid) to service_role;
+
+-- Same as step 6, but presale is { "active": true|false } (no end date any more).
+create or replace function public.show_availability(p_show smallint)
+returns jsonb
+language sql stable
+set search_path = ''
+as $$
+  with sold as (  -- paid, invalid or live hold: counts against the quota
+    select seat_id, tier from public.seats
+     where show_id = p_show and order_id is not null and (held_until is null or held_until > now())
+  ), taken as (   -- greyed out on the seat map: sold + broken
+    select seat_id, tier from sold
+    union
+    select seat_id, tier from public.seats where show_id = p_show and blocked
+  )
+  select jsonb_build_object(
+    'presale', jsonb_build_object('active', public.presale_active()),
+    'tiers', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'tier', t.tier, 'title', t.title, 'name', coalesce(t.name, t.tier),
+               'price', public.tier_price(t.tier), 'priceNormal', t.price_normal,
+               -- least() ignores null, so no quota = seats left only
+               'left', greatest(0, least(
+                 (select count(*) from public.seats s where s.show_id = p_show and s.tier = t.tier)
+                   - (select count(*) from taken k where k.tier = t.tier),
+                 public.tier_cap(t.tier) - (select count(*) from sold k where k.tier = t.tier)))
+             ) order by t.sort), '[]'::jsonb)
+        from public.tiers t
+    ),
+    'taken', (select coalesce(jsonb_agg(seat_id order by seat_id), '[]'::jsonb) from taken)
+  );
+$$;
+revoke all on function public.show_availability(smallint) from public, anon, authenticated;
+grant execute on function public.show_availability(smallint) to service_role;
+```
+
+## 9. Rate limiting (idempotent)
+
+Caps how often one network (IP address, IPv6 per /64) can hold seats, submit payments, look up tickets and try the admin login, and how many unpaid holds it can have at once (6 orders, so at most 24 seats), so a script can't keep a show "sold out" or guess the admin password. Limits live in `lib/rate-limit.ts` and below. Only a keyed hash of the IP is stored, never the IP itself. If this step hasn't run yet, the site still works, just without limits (the server logs `[rate-limit]` errors).
+
+> This step replaces `hold_seats` (it adds `p_client`). **If you ever re-run step 4, 6 or 8, re-run this step right after.**
+
+```sql
+create table if not exists public.rate_limits (
+  key      text primary key,      -- '{action}:{hashed ip}'
+  hits     int not null,
+  reset_at timestamptz not null
+);
+alter table public.rate_limits enable row level security;
+revoke all on public.rate_limits from public, anon, authenticated;
+grant select, insert, update, delete on public.rate_limits to service_role;
+
+-- Count one hit for p_key in a fixed window of p_window_s seconds. Returns false once the window has more than p_limit hits.
+-- One atomic upsert, so concurrent requests can't both slip under the limit.
+create or replace function public.rate_hit(p_key text, p_limit int, p_window_s int)
+returns boolean
+language sql
+set search_path = ''
+as $$
+  insert into public.rate_limits as r (key, hits, reset_at)
+  values (p_key, 1, now() + make_interval(secs => p_window_s))
+  on conflict (key) do update
+     set hits     = case when r.reset_at <= now() then 1 else r.hits + 1 end,
+         reset_at = case when r.reset_at <= now() then excluded.reset_at else r.reset_at end
+  returning hits <= p_limit;
+$$;
+revoke all on function public.rate_hit(text, int, int) from public, anon, authenticated;
+grant execute on function public.rate_hit(text, int, int) to service_role;
+
+-- Live-hold cap: remember which client (hashed IP) made each hold.
+alter table public.orders add column if not exists client text;
+create index if not exists orders_client_held_idx on public.orders (client) where status = 'held';
+
+-- Same as step 8, plus p_client and the TOO_MANY_HOLDS check. Drop the old signature so only one hold_seats exists.
+drop function if exists public.hold_seats(smallint, text, text[], text, text, text, text, uuid);
+create or replace function public.hold_seats(
+  p_show smallint, p_tier text, p_seats text[],
+  p_name text, p_email text, p_phone text, p_org text,
+  p_prev_order uuid default null, p_client text default null
+) returns table (order_id uuid, held_until timestamptz, total int)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_qty   int := coalesce(cardinality(p_seats), 0);
+  v_price int;
+  v_cap   int;
+  v_taken int;
+  v_id    uuid;
+  v_until timestamptz := now() + interval '10 minutes';
+  v_got   text[];
+  v_lost  text[];
+begin
+  if p_show is null or p_show not in (1, 2) then
+    raise exception 'INVALID_SHOW';
+  end if;
+  if v_qty not between 1 and 4 or array_position(p_seats, null) is not null then
+    raise exception 'INVALID_QTY';
+  end if;
+  if (select count(distinct s) from unnest(p_seats) s) <> v_qty then
+    raise exception 'DUPLICATE_SEATS';
+  end if;
+  v_price := public.tier_price(p_tier);
+  if v_price is null then
+    raise exception 'PRICE_NOT_SET';
+  end if;
+
+  -- Live-hold cap per client network (p_client = keyed hash of the buyer's IP, from the server). The advisory lock
+  -- makes parallel requests from one client wait for each other, so they can't all slip under the cap.
+  -- It is taken before any row lock, in every call, so it can't deadlock with them.
+  if p_client is not null then
+    perform pg_advisory_xact_lock(hashtext('hold:' || p_client));
+    if (select count(*) from public.orders
+         where client = p_client and status = 'held' and held_until > now()
+           and id is distinct from p_prev_order) >= 6 then
+      raise exception 'TOO_MANY_HOLDS';
+    end if;
+  end if;
+
+  -- Lock the ticket category first: holds of one category wait for each other here, so the quota
+  -- count below can't be raced. Then the order row, then seat rows in a fixed order (same as submit_order),
+  -- so concurrent holds and payments wait for each other instead of deadlocking.
+  perform 1 from public.tiers where tier = p_tier for update;
+  perform 1 from public.orders where id = p_prev_order for update;
+  perform 1 from public.seats
+   where (show_id = p_show and seat_id = any (p_seats)) or order_id = p_prev_order
+   order by show_id, seat_id
+   for update;
+
+  -- Release the buyer's previous hold, but only while it is still unpaid.
+  if exists (select 1 from public.orders where id = p_prev_order and status = 'held') then
+    update public.seats set order_id = null, held_until = null where order_id = p_prev_order;
+    delete from public.orders where id = p_prev_order;
+  end if;
+
+  -- Quota: seats of this category already taken in this show (paid, invalid or live hold) plus this hold.
+  v_cap := public.tier_cap(p_tier);
+  if v_cap is not null then
+    select count(*) into v_taken
+      from public.seats
+     where show_id = p_show and tier = p_tier
+       and order_id is not null and (held_until is null or held_until > now());
+    if v_taken + v_qty > v_cap then
+      raise exception 'QUOTA_FULL';
+    end if;
+  end if;
+
+  -- presale = this order got the presale price. Derived from v_price (the price actually charged), so it always
+  -- matches the total even if the switch flips mid-hold; same rule as the backfill above.
+  insert into public.orders (show_id, tier, qty, buyer_name, buyer_email, buyer_phone, buyer_org, total, held_until, presale, client)
+  values (p_show, p_tier, v_qty, p_name, p_email, p_phone, nullif(p_org, ''), v_price * v_qty, v_until,
+          (select coalesce(t.price_presale <> t.price_normal and v_price = t.price_presale, false)
+             from public.tiers t where t.tier = p_tier),
+          p_client)
+  returning id into v_id;
+
+  with claimed as (
+    update public.seats
+       set order_id = v_id, held_until = v_until
+     where show_id = p_show
+       and seat_id = any (p_seats)
+       and tier = p_tier
+       and not blocked
+       and (order_id is null or held_until < now())
+    returning seat_id
+  )
+  select coalesce(array_agg(seat_id), '{}') into v_got from claimed;
+
+  if cardinality(v_got) <> v_qty then
+    v_lost := array(select s from unnest(p_seats) s where s <> all (v_got) order by s);
+    raise exception 'SEATS_TAKEN' using detail = array_to_string(v_lost, ',');
+  end if;
+
+  return query select v_id, v_until, v_price * v_qty;
+end;
+$$;
+revoke all on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) from public, anon, authenticated;
+grant execute on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) to service_role;
+```
+
+Check it (expect `true`, `true`, `false`), then remove the test row:
+
+```sql
+select public.rate_hit('test', 2, 60);
+select public.rate_hit('test', 2, 60);
+select public.rate_hit('test', 2, 60);
+delete from public.rate_limits where key = 'test';
+```
+
 ---
 
 Everything below is **not** a setup step. Run it only when you need it.
@@ -519,8 +961,8 @@ select sh.show_id, t.tier as category, t.name, t.quota_presale, t.quota_sale, pu
   from public.tiers t cross join (values (1::smallint), (2::smallint)) as sh(show_id)
  order by sh.show_id, t.sort;
 
--- Presale end (null = no presale).
-select presale_until, now() < presale_until as presale_active from public.settings;
+-- Presale switch (step 8).
+select presale from public.settings;
 
 -- What the site sees for show 1 ("left" = tickets left).
 select public.show_availability(1::smallint);
@@ -538,12 +980,11 @@ update public.tiers set name = 'Hemat Tipis' where tier = 'Platinum';
 update public.tiers set price_presale = null, price_normal = null where tier = 'Bronze';
 ```
 
-**Presale.** Presale prices and presale quotas apply until `presale_until` (always include the timezone; `+07` = WIB):
+**Presale.** Use the "Presale / Harga normal" switch at the top of `/admin` (step 8). It changes prices and quotas on the site immediately. The SQL equivalent:
 
 ```sql
-update public.settings set presale_until = '2026-10-20 23:59:59+07';  -- set or move the presale end
-update public.settings set presale_until = now();                     -- end presale early (right now)
-update public.settings set presale_until = null;                      -- no presale: normal prices, full quota
+update public.settings set presale = true;   -- presale prices + presale quotas
+update public.settings set presale = false;  -- normal prices, full quota
 ```
 
 **Quotas** (per show; lowering a quota never cancels tickets already sold, it only stops new ones):
@@ -566,7 +1007,8 @@ update public.seats set blocked = false where seat_id = 'C5';                 --
 - Copy `.env.example` to `.env.local` in the repo root (`.env.local` is git-ignored).
 - `SUPABASE_URL`: Dashboard → **Project Settings** → **Data API** (or **API**) → Project URL, e.g. `https://abcd1234.supabase.co`.
 - `SUPABASE_SECRET_KEY`: Dashboard → **Project Settings** → **API Keys** → **Secret keys** → create/reveal one (starts with `sb_secret_`). Older projects without the new keys can use the legacy `service_role` key from the same page.
-- Restart `npm run dev`. On Vercel (or another host), add both variables in the project's environment settings.
+- `ADMIN_USER` and `ADMIN_PASSWORD`: the single login for `/admin`. Pick them yourself; the password must be **at least 12 characters** (shorter ones are refused, so the login can't be guessed). Changing either one logs every admin out (logging out only clears that browser, so change the password if a login may have leaked).
+- Restart `npm run dev`. On Vercel (or another host), add all four variables in the project's environment settings.
 
 Never prefix these with `NEXT_PUBLIC_`, never commit them, and never paste the secret key into client code: it bypasses all security.
 
@@ -595,6 +1037,12 @@ delete from public.orders o
    and not exists (select 1 from public.seats s where s.order_id = o.id);
 ```
 
+**Clean up old rate-limit rows** (safe any time; expired rows are reset on the next hit anyway):
+
+```sql
+delete from public.rate_limits where reset_at < now() - interval '1 day';
+```
+
 **Release the seats of an invalid order** (manual override, NOT default). By the owner's decision an order marked `invalid` keeps its seats locked (and keeps counting against the quota), so nobody else can buy them. Only if the committee decides to resell those seats, run this with the booking code:
 
 ```sql
@@ -605,18 +1053,26 @@ update public.seats set order_id = null, held_until = null
 **Re-apply function grants.** Every step already locks its functions down. Run this only if you ever changed a function by hand:
 
 ```sql
-revoke all on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid) from public, anon, authenticated;
+revoke all on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) from public, anon, authenticated;
 revoke all on function public.submit_order(uuid, text, text) from public, anon, authenticated;
 revoke all on function public.lookup_ticket(text, text) from public, anon, authenticated;
 revoke all on function public.show_availability(smallint) from public, anon, authenticated;
 revoke all on function public.tier_price(text) from public, anon, authenticated;
 revoke all on function public.tier_cap(text) from public, anon, authenticated;
-grant execute on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid) to service_role;
+revoke all on function public.move_seats(uuid, text[]) from public, anon, authenticated;
+revoke all on function public.delete_order(uuid) from public, anon, authenticated;
+revoke all on function public.presale_active() from public, anon, authenticated;
+revoke all on function public.rate_hit(text, int, int) from public, anon, authenticated;
+grant execute on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) to service_role;
 grant execute on function public.submit_order(uuid, text, text) to service_role;
 grant execute on function public.lookup_ticket(text, text) to service_role;
 grant execute on function public.show_availability(smallint) to service_role;
 grant execute on function public.tier_price(text) to service_role;
 grant execute on function public.tier_cap(text) to service_role;
+grant execute on function public.move_seats(uuid, text[]) to service_role;
+grant execute on function public.delete_order(uuid) to service_role;
+grant execute on function public.presale_active() to service_role;
+grant execute on function public.rate_hit(text, int, int) to service_role;
 ```
 
 **At the door:** the ticket PDF is generated in the buyer's browser, so it can be edited. Door staff must check each ticket against the database (the "Cek tiket" page with code + email, or the `orders` table), and accept only status `valid`.

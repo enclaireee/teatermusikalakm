@@ -37,7 +37,7 @@ export function Hero() {
           <div className="max-lg:contents lg:relative lg:flex lg:min-w-0 lg:flex-1 lg:flex-col lg:gap-6">
 
             <div className="contents md:relative md:col-span-7 md:row-start-1 md:block md:w-fit">
-              <Image src="/logo-akm.webp" alt="" aria-hidden width={700} height={516} priority className="h-auto w-[260px] max-w-full -rotate-6 animate-stamp [filter:drop-shadow(6px_6px_0_#404040)] sm:w-[300px] md:w-[380px] md:max-w-none md:shrink-0 lg:w-[440px]" />
+              <Image src="/logo-akm.webp" alt="" aria-hidden width={700} height={516} priority sizes="(min-width: 64rem) 440px, (min-width: 48rem) 380px, (min-width: 40rem) 300px, 260px" className="h-auto w-[260px] max-w-full -rotate-6 animate-stamp [filter:drop-shadow(6px_6px_0_#404040)] sm:w-[300px] md:w-[380px] md:max-w-none md:shrink-0 lg:w-[440px]" />
             </div>
 
             <div data-reveal="scale" style={d(300)} className="relative w-full rotate-2 md:col-span-12 md:row-start-2 md:w-full md:rotate-[1.5deg] lg:-mt-2 lg:-rotate-2">

@@ -9,7 +9,7 @@ const NOTE = "Nyatuin harapan, cerita hidup, dan musik jadi satu panggung.";
 const PARTNERS = [
   { logo: "/Logo Stage.webp", w: 414, h: 96, tint: "", name: "Stage UI", desc: "Penggagas dan produksi. Peminatan Stage Performing Arts, Produksi Media, Sekolah Vokasi UI." },
   // the Juzzer file is white-on-transparent; brightness-0 turns it black for the light paper card
-  { logo: "/Logo Juzzer.webp", w: 12288, h: 2031, tint: "brightness-0", name: "Juzzer", desc: "Band asal UI. Lagu-lagunya jadi tulang punggung cerita, dibawakan live." },
+  { logo: "/Logo Juzzer.webp", w: 1200, h: 199, tint: "brightness-0", name: "Juzzer", desc: "Band asal UI. Lagu-lagunya jadi tulang punggung cerita, dibawakan live." },
 ];
 
 const PAPER = "border-2 border-border-default bg-bg-page bg-paper p-5 text-text-strong shadow-sticker lg:p-6";
@@ -68,7 +68,7 @@ export function Tentang() {
           <ul data-reveal="up" className="grid gap-4 md:grid-cols-2 lg:gap-6">
             {PARTNERS.map((p, i) => (
               <li key={p.name} className={`flex min-w-0 flex-col gap-3 ${["-rotate-1 lg:-rotate-[1.5deg]", "rotate-1"][i]} ${PAPER}`}>
-                <Image src={p.logo} alt="" width={p.w} height={p.h} className={`h-10 w-auto max-w-full self-start object-contain object-left ${p.tint}`} />
+                <Image src={p.logo} alt="" width={p.w} height={p.h} sizes="242px" className={`h-10 w-auto max-w-full self-start object-contain object-left ${p.tint}`} />
                 <div className="min-w-0">
                   <h4 className="type-h4">{p.name}</h4>
                   <p className="type-body-s mt-1 text-text-primary">{p.desc}</p>

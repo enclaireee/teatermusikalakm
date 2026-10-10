@@ -308,6 +308,19 @@ html[data-curtain="closed"] {
 html[data-curtain="closed"] :is(.animate-enter, .animate-enter-scale, .animate-pop, .animate-stamp, .animate-slide-down) {
   animation-play-state: paused;
 }
+/* View transitions paint above the fixed curtain; disable them until the curtain is done. */
+html[data-curtain="closed"] *,
+html[data-curtain="open"] * {
+  view-transition-name: none !important;
+}
+html[data-curtain="closed"]::view-transition-group(*),
+html[data-curtain="closed"]::view-transition-old(*),
+html[data-curtain="closed"]::view-transition-new(*),
+html[data-curtain="open"]::view-transition-group(*),
+html[data-curtain="open"]::view-transition-old(*),
+html[data-curtain="open"]::view-transition-new(*) {
+  animation: none !important;
+}
 html[data-curtain="skip"] .akm-curtain {
   display: none;
 }

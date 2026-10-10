@@ -4,6 +4,7 @@
 // (hold_seats / submit_order in backend.md), and return only shaped, user-facing results.
 import type { PayMethod } from "@/lib/booking";
 import { isShowId, MAX_PROOF_BYTES, type ShowId, type Tier } from "@/lib/event"; // MAX_PROOF_BYTES must match the payment-proofs bucket limit
+import { clientId, RATE_LIMITED, rateLimited } from "@/lib/rate-limit";
 import { SEATS } from "@/lib/seats";
 import { supabase } from "@/lib/supabase";
 import { checkField, validateBuyer } from "@/lib/validate";
@@ -44,10 +45,12 @@ const BUCKET = "payment-proofs";
 const GENERIC = "Maaf, ada gangguan di sistem kami. Coba lagi sebentar lagi ya.";
 const EXPIRED = "Waktu pembayaran habis dan kursimu sudah dilepas. Pilih kursi lagi ya.";
 
-type DbError = { message: string; details?: string | null };
+type DbError = { message: string; details?: string | null; code?: string };
 const fail = (error: string) => ({ ok: false as const, error });
+// Message and code only: Postgres error details can echo buyer data.
 function logError(where: string, e: unknown) {
-  console.error(`[checkout] ${where}`, e);
+  const { message, code } = (e ?? {}) as { message?: string; code?: string };
+  console.error(`[checkout] ${where}`, code ?? "", message ?? String(e));
 }
 
 export async function holdSeats(input: HoldInput): Promise<HoldResult> {
@@ -62,21 +65,26 @@ export async function holdSeats(input: HoldInput): Promise<HoldResult> {
   const buyer = validateBuyer(i.buyer);
   if (!buyer.ok) return buyer;
   const prev = typeof i.prevOrderId === "string" && UUID.test(i.prevOrderId) ? i.prevOrderId : null;
+  if (await rateLimited("hold")) return fail(RATE_LIMITED); // stops one client from holding the whole house
 
   try {
-    const { data, error } = await supabase()
-      .rpc("hold_seats", {
-        p_show: Number(i.show),
-        p_tier: i.tier,
-        p_seats: seats,
-        p_name: buyer.buyer.name,
-        p_email: buyer.buyer.email,
-        p_phone: buyer.buyer.phone,
-        p_org: buyer.buyer.org,
-        p_prev_order: prev,
-      })
-      .single<{ order_id: string; held_until: string; total: number }>();
-    if (error) return holdError(error);
+    const args = {
+      p_show: Number(i.show),
+      p_tier: i.tier,
+      p_seats: seats,
+      p_name: buyer.buyer.name,
+      p_email: buyer.buyer.email,
+      p_phone: buyer.buyer.phone,
+      p_org: buyer.buyer.org,
+      p_prev_order: prev,
+    };
+    const hold = (a: typeof args & { p_client?: string | null }) =>
+      supabase().rpc("hold_seats", a).single<{ order_id: string; held_until: string; total: number }>();
+    let { data, error } = await hold({ ...args, p_client: await clientId() });
+    // ponytail: PGRST202 = no hold_seats with p_client yet (backend.md step 9 not run). Retry the old signature so
+    // checkout keeps working; delete this once step 9 is live.
+    if (error?.code === "PGRST202") ({ data, error } = await hold(args));
+    if (error || !data) return holdError(error ?? { message: "NO_DATA" });
     return { ok: true, orderId: data.order_id, heldUntil: Date.parse(data.held_until), total: data.total };
   } catch (e) {
     logError("holdSeats", e);
@@ -91,6 +99,7 @@ function holdError(e: DbError): HoldResult {
   }
   if (e.message === "PRICE_NOT_SET") return fail("Kategori tiket ini belum dibuka. Coba lagi nanti ya.");
   if (e.message === "QUOTA_FULL") return fail("Kuota kategori ini sudah habis. Kembali dan pilih kategori lain ya.");
+  if (e.message === "TOO_MANY_HOLDS") return fail("Terlalu banyak pesanan yang belum dibayar dari jaringanmu. Selesaikan atau tunggu 10 menit, lalu coba lagi ya.");
   logError("hold_seats", e);
   return fail(GENERIC);
 }
@@ -114,6 +123,7 @@ export async function submitPayment(formData: FormData): Promise<SubmitResult> {
   if (proof.size > MAX_PROOF_BYTES) return fail("Ukuran file maksimal 1 MB.");
   const type = await sniffType(proof);
   if (!type) return fail("Format file harus JPG, PNG, atau PDF."); // stored with the sniffed type, not the declared one
+  if (await rateLimited("submit")) return fail(RATE_LIMITED);
 
   try {
     const db = supabase();
@@ -183,6 +193,7 @@ export async function lookupTicket(code: string, email: string): Promise<LookupR
   if (!CODE.test(c)) return fail("Kode booking terdiri dari 5 huruf/angka, contoh: K7M2Q.");
   const emailError = checkField("email", { name: "", email: m, phone: "", agree: true });
   if (emailError || m.length > 254) return fail(emailError ?? NOT_FOUND);
+  if (await rateLimited("lookup")) return fail(RATE_LIMITED);
 
   try {
     const { data, error } = await supabase()

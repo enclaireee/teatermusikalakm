@@ -31,7 +31,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-[1440px] flex-col gap-8 px-4 py-10 lg:gap-10 lg:px-20 lg:py-16">
         <div data-reveal-stagger data-reveal="up" className="flex flex-col gap-8 lg:flex-row lg:gap-20">
           <div className="flex flex-col gap-4 lg:w-[420px]">
-            <Image src="/logo-akm.webp" alt="Aku Kau & Musik" width={700} height={516} className="h-24 w-auto self-start" />
+            <Image src="/logo-akm.webp" alt="Aku Kau & Musik" width={700} height={516} sizes="130px" className="h-24 w-auto self-start" />
             <p className="type-body-s">
               Teater musikal karya mahasiswa Stage Performing Arts, Produksi Media, Sekolah Vokasi UI, berkolaborasi dengan Juzzer.
             </p>

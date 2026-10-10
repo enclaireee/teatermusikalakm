@@ -27,9 +27,14 @@ export function TicketLookup() {
     setError(undefined);
     setPdfError(undefined);
     start(async () => {
-      const r = await lookupTicket(code, email);
-      if (r.ok) setTicket(r.ticket);
-      else { setTicket(undefined); setError(r.error); }
+      try {
+        const r = await lookupTicket(code, email);
+        if (r.ok) setTicket(r.ticket);
+        else { setTicket(undefined); setError(r.error); }
+      } catch {
+        setTicket(undefined);
+        setError("Koneksi bermasalah. Coba lagi ya.");
+      }
     });
   }
 

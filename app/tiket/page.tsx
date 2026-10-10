@@ -6,6 +6,7 @@ import { TicketLookup } from "./ticket-lookup";
 
 export const metadata: Metadata = {
   title: "Cek Tiket",
+  alternates: { canonical: "/tiket" },
   description: "Cek status tiket dan download ulang E-Tiket kamu pakai kode booking dan email.",
 };
 

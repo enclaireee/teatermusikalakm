@@ -10,7 +10,7 @@ export type TierAvailability = {
   priceNormal: number | null;
   left: number;
 };
-export type Availability = { presale: { active: boolean; until: string | null }; tiers: TierAvailability[]; taken: string[] };
+export type Availability = { presale: { active: boolean }; tiers: TierAvailability[]; taken: string[] };
 
 /** Live seat availability for one show (no caching: holds change every minute). Throws on DB errors. */
 export async function getAvailability(show: ShowId): Promise<Availability> {
@@ -18,7 +18,7 @@ export async function getAvailability(show: ShowId): Promise<Availability> {
   if (error) throw new Error(`show_availability failed: ${error.message}`);
   const d = data as Availability;
   return {
-    presale: { active: d.presale.active, until: d.presale.until },
+    presale: { active: d.presale.active },
     tiers: d.tiers.map(({ tier, title, name, price, priceNormal, left }) => ({ tier, title, name, price, priceNormal, left })),
     taken: d.taken,
   };

@@ -36,7 +36,10 @@ export function CurtainLoader() {
       return;
     }
     const timers: number[] = [];
-    const finish = () => timers.push(window.setTimeout(() => setGone(true), DONE_MS));
+    const finish = () => timers.push(window.setTimeout(() => {
+        document.documentElement.dataset.curtain = "skip";
+        setGone(true);
+      }, DONE_MS));
     const lift = () => {
       if (root.dataset.curtain !== "open") root.dataset.curtain = "open";
       try {

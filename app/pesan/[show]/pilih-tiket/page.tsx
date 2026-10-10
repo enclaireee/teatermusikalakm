@@ -14,7 +14,6 @@ import { MAX_TICKETS, SALE_TIERS, SHOWS, type Tier } from "@/lib/event";
 import { useAvailability } from "@/lib/use-availability";
 
 const FORM_ID = "pilih-tiket-form";
-const untilFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Jakarta" });
 
 export default function PilihTiketPage() {
   const { booking, ready, reset } = useBooking();
@@ -90,8 +89,8 @@ function Form() {
               <span className="type-label text-text-strong">
                 Kategori tiket<span className="text-text-danger" aria-hidden="true"> *</span>
               </span>
-              {presale?.active && presale.until && (
-                <p className="type-caption text-text-primary">Harga presale sampai {untilFmt.format(new Date(presale.until))} WIB</p>
+              {presale?.active && (
+                <p className="type-caption text-text-primary">Harga presale</p>
               )}
               {avail.loading && !avail.data ? (
                 <p role="status" aria-busy="true" className="type-body-s rounded-md border-2 border-dashed border-border-subtle bg-bg-muted px-5 py-4 text-text-secondary">Memuat kategori tiket…</p>
