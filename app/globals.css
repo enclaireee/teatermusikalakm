@@ -72,9 +72,9 @@
   --shadow-sticker-s: 2px 2px 0 0 #404040;
   --shadow-soft: 0 8px 24px 0 rgb(0 0 0 / 0.12);
 
-  /* Fonts: Kirang Haerang (heading), Bootzy TM → Plus Jakarta Sans 600 until Bootzy is supplied */
+  /* Fonts: Kirang Haerang (heading), Bootzy TM (body, app/fonts/BootzyTM.woff2) */
   --font-heading: var(--font-kirang), "Kirang Haerang", cursive;
-  --font-body: var(--font-bootzy, var(--font-jakarta)), system-ui, sans-serif;
+  --font-body: var(--font-bootzy), system-ui, sans-serif;
 
   /* Motion */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);

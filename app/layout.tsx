@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { Kirang_Haerang, Plus_Jakarta_Sans } from "next/font/google";
+import { Kirang_Haerang } from "next/font/google";
+import localFont from "next/font/local";
 import { ViewTransition } from "react";
 import { CurtainLoader } from "@/components/site/curtain-loader";
 import "./globals.css";
 
 const kirang = Kirang_Haerang({ weight: "400", subsets: ["latin"], variable: "--font-kirang" });
-// ponytail: stand-in for Bootzy TM. Drop the .woff2 into app/fonts/ and load it with
-// next/font/local as variable "--font-bootzy"; --font-body already prefers it.
-const jakarta = Plus_Jakarta_Sans({ weight: "600", subsets: ["latin"], variable: "--font-jakarta" });
+// Bootzy TM ships a single weight; declaring it for 400–700 lets the body styles (weight 600) use it without faux bold.
+const bootzy = localFont({ src: "./fonts/BootzyTM.woff2", weight: "400 700", variable: "--font-bootzy", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Teater Musikal Aku, Kau & Musik", template: "%s · Aku, Kau & Musik" },
@@ -22,7 +22,7 @@ const CURTAIN_SCRIPT = `try{var d=document.documentElement;if(sessionStorage.get
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="id" className={`${kirang.variable} ${jakarta.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="id" className={`${kirang.variable} ${bootzy.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         {/* Runs before first paint: decide whether the opening curtain shows (once per session). See CURTAIN_SCRIPT. */}
         <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: CURTAIN_SCRIPT }} />
