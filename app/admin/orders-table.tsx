@@ -29,17 +29,19 @@ export function OrdersTable({ orders }: { orders: AdminOrder[] }) {
         </thead>
         <tbody>
           {orders.map((o) => (
-            <tr key={o.id} className="relative border-b border-border-subtle last:border-b-0 hover:bg-bg-accent-soft focus-within:bg-bg-accent-soft">
+            <tr key={o.id} className="border-b border-border-subtle last:border-b-0 hover:bg-bg-accent-soft focus-within:bg-bg-accent-soft">
               <td className={TD}>
-                <Link href={`/admin/${o.id}`} className="font-bold text-text-strong after:absolute after:inset-0">{o.code}</Link>
+                {/* Plain links, not a row-wide ::after overlay: iOS Safari ignores position:relative on <tr>, so the overlay
+                    covered the whole page and swallowed every tap (presale switch, search, …). */}
+                <Link href={`/admin/${o.id}`} className="inline-flex min-h-11 items-center font-bold text-text-strong underline">{o.code}</Link>
               </td>
               <td className={`${TD} max-w-48 min-w-0`}>
-                <p className="truncate text-text-strong">{o.buyer.name}</p>
+                <Link href={`/admin/${o.id}`} className="block truncate text-text-strong hover:underline">{o.buyer.name}</Link>
                 <p className="type-caption text-text-secondary">{o.buyer.phone}</p>
                 <p className="type-caption text-text-secondary md:hidden">{SHOWS[o.show].label} · {o.qty} tiket · {formatRupiah(o.total)}{o.presale ? " · Presale" : ""}</p>
-                <div className="relative z-10 mt-1 w-fit"><ProofButton order={o} /></div>
+                <div className="mt-1 w-fit"><ProofButton order={o} /></div>
               </td>
-              <td className={`${TD} relative z-10`}>
+              <td className={TD}>
                 <MarkToggle id={o.id} code={o.code} checked={o.checked} size="sm" />
               </td>
               <td className={`${TD} hidden whitespace-nowrap md:table-cell`}>{SHOWS[o.show].label}</td>
