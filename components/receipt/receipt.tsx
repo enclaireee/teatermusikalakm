@@ -49,7 +49,7 @@ export function Receipt({ ticket, ref }: { ticket: Ticket; ref?: React.Ref<HTMLD
       <div className="flex flex-1 flex-col gap-6 px-10 py-8">
         <div className="flex items-center gap-3">
           <span className="type-body-m text-text-secondary">Status tiket:</span>
-          <span className={`type-label rounded-full border px-3 py-1 ${valid ? "border-border-brand bg-bg-brand-soft text-text-brand" : "border-border-danger bg-bg-danger-soft text-text-danger"}`}>
+          <span className={`type-label whitespace-nowrap rounded-full border px-3 py-1 ${valid ? "border-border-brand bg-bg-brand-soft text-text-brand" : "border-border-danger bg-bg-danger-soft text-text-danger"}`}>
             {valid ? "Berhasil dipesan" : "Tidak berlaku"}
           </span>
         </div>
@@ -60,15 +60,15 @@ export function Receipt({ ticket, ref }: { ticket: Ticket; ref?: React.Ref<HTMLD
               <h2 className="type-h4 text-text-brand">{title}</h2>
               {items.map(([l, v]) => (
                 <div key={l} className="flex justify-between gap-2">
-                  <span className="type-body-s text-text-secondary">{l}</span>
-                  <span className="type-body-s min-w-0 break-words text-right text-text-strong">{v}</span>
+                  <span className="type-body-s shrink-0 text-text-secondary">{l}</span>
+                  <span className={`type-body-s min-w-0 text-right text-text-strong ${l === "Email" ? "break-all" : l === "Nama" ? "break-words" : "whitespace-nowrap"}`}>{v}</span>
                 </div>
               ))}
             </section>
           ))}
         </div>
 
-        <table className="w-full border-separate border-spacing-0 overflow-hidden rounded-md border border-border-default text-left">
+        <table className="w-full whitespace-nowrap border-separate border-spacing-0 overflow-hidden rounded-md border border-border-default text-left">
           <thead>
             <tr className="type-label bg-bg-brand-soft text-text-brand">
               <th className="px-5 py-3">Kursi</th>
@@ -92,7 +92,7 @@ export function Receipt({ ticket, ref }: { ticket: Ticket; ref?: React.Ref<HTMLD
           </tbody>
         </table>
 
-        <div className="type-body-s flex justify-between text-text-secondary">
+        <div className="type-body-s flex justify-between gap-6 whitespace-nowrap text-text-secondary">
           <span>Metode: {method === "qris" ? "QRIS" : "Transfer Bank"}</span>
           <span>Dibayar {fmtStamp(paidAt)}</span>
         </div>
@@ -113,7 +113,7 @@ export function Receipt({ ticket, ref }: { ticket: Ticket; ref?: React.Ref<HTMLD
         </div>
       </div>
 
-      <footer className="type-caption flex flex-wrap justify-between gap-x-6 gap-y-1 bg-bg-brand-strong px-10 py-4">
+      <footer className="type-caption flex flex-wrap whitespace-nowrap justify-between gap-x-6 gap-y-1 bg-bg-brand-strong px-10 py-4">
         <span className="text-text-on-brand">{CONTACT.instagram} · {CONTACT.persons.map((p) => `${p.name} ${p.phone}`).join(" · ")}</span>
         <span className="text-text-accent">Presented by Juzzer × Stage UI</span>
       </footer>

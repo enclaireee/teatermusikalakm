@@ -2,19 +2,20 @@
 export async function downloadReceiptPdf(node: HTMLElement, filename: string): Promise<void> {
   const imgs = [...node.querySelectorAll("img")];
   try {
-    const [{ toJpeg }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
+    const [{ toSvg }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
     await document.fonts.ready;
     // Safari often drops <img>s from html-to-image's SVG snapshot (the logo vanished from the PDF), so images are
     // hidden during the capture and drawn onto the PDF directly instead.
     const origin = node.getBoundingClientRect();
     const pics = (await Promise.all(imgs.map((i) => snapshot(i, origin)))).filter((p) => p !== null);
     imgs.forEach((i) => (i.style.visibility = "hidden"));
-    let img: string;
+    let svg: string;
     try {
-      img = await toJpeg(node, { quality: 0.9, backgroundColor: "white", pixelRatio: 2, cacheBust: true });
+      svg = await toSvg(node, { backgroundColor: "white", cacheBust: true });
     } finally {
       imgs.forEach((i) => (i.style.visibility = ""));
     }
+    const img = await rasterize(svg, node.offsetWidth, node.offsetHeight);
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pw = pdf.internal.pageSize.getWidth();
     const ph = pdf.internal.pageSize.getHeight();
@@ -29,6 +30,26 @@ export async function downloadReceiptPdf(node: HTMLElement, filename: string): P
   } catch (e) {
     throw new Error("Gagal membuat PDF. Coba lagi.", { cause: e });
   }
+}
+
+/** The SVG snapshot as a 2× JPEG data URL. */
+async function rasterize(svg: string, w: number, h: number): Promise<string> {
+  const img = new Image();
+  img.src = svg;
+  await img.decode();
+  // Safari can finish decode() before the snapshot's embedded web fonts are in: drawn right away, the text fell back
+  // to the wider system font and wrapped over itself. A draw, a short wait, then the real draw gives it time.
+  // ponytail: fixed 600 ms wait, no way to observe fonts inside an SVG image; raise it if a slow phone still misses them.
+  const c = document.createElement("canvas");
+  c.width = w * 2;
+  c.height = h * 2;
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  await new Promise((r) => setTimeout(r, 600));
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.9);
 }
 
 /** The image as a PNG plus its box relative to `origin`, in CSS px. null if it failed to load (left out of the PDF). */
