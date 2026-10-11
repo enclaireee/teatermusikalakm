@@ -146,7 +146,7 @@ export default function BayarPage() {
 
         {method === "qris" ? (
           <div data-reveal="up" className="flex flex-col items-center gap-6 rounded-md border-2 border-border-brand bg-bg-brand-soft p-6 lg:flex-row lg:items-start">
-            <Image src="/QRIS.webp" alt="Kode QRIS untuk membayar tiket" width={552} height={552} sizes="(min-width: 1024px) 280px, 80vw" className="size-auto w-full max-w-[280px] shrink-0 rounded-md border-2 border-border-default bg-bg-surface" />
+            <Image src="/QRIS.png" alt="Kode QRIS untuk membayar tiket" width={582} height={564} sizes="(min-width: 1024px) 280px, 80vw" className="size-auto w-full max-w-[280px] shrink-0 rounded-md border-2 border-border-default bg-bg-surface" />
             <div className="flex min-w-0 flex-1 flex-col gap-3 self-stretch">
               <p className="type-caption text-text-primary">Total bayar</p>
               <p className="type-h2 text-text-strong">{total}</p>
