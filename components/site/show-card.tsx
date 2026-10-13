@@ -6,7 +6,7 @@ import { Stamp } from "@/components/ui/stamp";
 import { EVENT, SHOWS, type ShowId } from "@/lib/event";
 import { getAvailability } from "@/lib/availability";
 
-/** Show card; the live seat count only decides the sold-out state (no count is shown). */
+/** Show card; the live seat count drives the sold-out state and the seats-left label. */
 export function ShowCard({ id }: { id: ShowId }) {
   return (
     <Suspense fallback={<ShowCardView id={id} />}>
@@ -56,6 +56,7 @@ function ShowCardView({ id, left }: { id: ShowId; left?: number }) {
         <span aria-hidden className={`${notch} -right-[18px] -top-[18px] md:-left-4 md:right-auto md:top-auto md:-bottom-[19px]`} />
         <span aria-hidden className="bg-barcode h-7 w-full opacity-80 md:h-14" />
         <span aria-hidden className="type-caption -rotate-3 text-text-primary">No. 00{id}</span>
+        {left !== undefined && !sold && <p className="type-label text-text-strong">Sisa {left} kursi</p>}
         {sold ? (
           <Button disabled fullWidth>Tiket Habis</Button>
         ) : (
