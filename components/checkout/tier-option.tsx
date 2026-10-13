@@ -1,5 +1,5 @@
 "use client";
-import { TIER_BG } from "@/components/seat/seat";
+import { TierMinimap } from "@/components/seat/tier-minimap";
 import { TIERS, formatRupiah, type Tier } from "@/lib/event";
 import type { TierAvailability } from "@/lib/use-availability";
 
@@ -25,9 +25,7 @@ export function TierOption({ name, info, extraLeft = 0, tier, presale, checked, 
       <span aria-hidden="true" className={`flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 bg-bg-surface ${checked ? "border-border-brand" : disabled ? "border-border-subtle" : "border-border-default"}`}>
         {checked && <span className="size-2.5 animate-pop rounded-full bg-bg-brand" />}
       </span>
-      <span aria-hidden="true" className={`type-label flex size-9 shrink-0 items-center justify-center rounded-sm border-2 border-border-default ${TIER_BG[tier]} ${disabled ? "opacity-40" : ""}`}>
-        {tier.charAt(0)}
-      </span>
+      <TierMinimap tier={tier as Exclude<Tier, "VIP">} disabled={disabled} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className={`type-h4 ${disabled ? "text-text-disabled" : "text-text-strong"}`}>{named ? info.name : tier}</span>
         {named && <span className={`type-label ${muted}`}>{tier}</span>}

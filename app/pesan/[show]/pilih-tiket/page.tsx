@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BottomBar, CheckoutCard, CheckoutShell, OrderSummary, stepHref } from "@/components/checkout/shell";
 import { TierOption } from "@/components/checkout/tier-option";
-import { SeatOverview } from "@/components/seat/seat-overview";
 import { RevealText } from "@/components/site/reveal-text";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -79,9 +78,6 @@ function Form() {
           <div className="flex flex-col gap-2">
             <RevealText as="h1" text="Pilih kategori tiket" className="type-h2 text-text-brand" />
             <p data-reveal="up" className="type-body-m text-text-secondary">Satu kategori per pesanan, maks. {MAX_TICKETS} tiket. Kursinya kamu pilih nanti.</p>
-          </div>
-          <div data-reveal="up">
-            <SeatOverview tier={tier} names={Object.fromEntries((avail.data?.tiers ?? []).map((t) => [t.tier, t.name]))} />
           </div>
           {error && <div id="tier-error"><Alert type="error" title="Tiketnya belum bisa dilanjut">{error}</Alert></div>}
           <div data-reveal="up" className="flex flex-col gap-5 lg:gap-6">
