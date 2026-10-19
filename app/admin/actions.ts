@@ -5,6 +5,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { adminConfigured, checkLogin, endSession, requireAdmin, startSession, UUID } from "@/lib/admin";
+import { MAX_TICKETS } from "@/lib/event";
 import { RATE_LIMITED, rateLimited } from "@/lib/rate-limit";
 import { supabase } from "@/lib/supabase";
 import { validateBuyer, type BuyerInput } from "@/lib/validate";
@@ -79,7 +80,7 @@ export async function updateBuyer(id: string, buyer: BuyerInput): Promise<AdminR
 export async function moveSeats(id: string, seats: string[]): Promise<AdminResult> {
   await requireAdmin();
   if (typeof id !== "string" || !UUID.test(id)) return fail(NOT_FOUND);
-  if (!Array.isArray(seats) || seats.length < 1 || seats.length > 4 || !seats.every((s) => typeof s === "string")) {
+  if (!Array.isArray(seats) || seats.length < 1 || seats.length > MAX_TICKETS || !seats.every((s) => typeof s === "string")) {
     return fail("Pilih kursi pengganti.");
   }
   try {

@@ -3,7 +3,7 @@
 // Checkout server actions. Every input is untrusted: validate here, let Postgres enforce the seat rules
 // (hold_seats / submit_order in backend.md), and return only shaped, user-facing results.
 import type { PayMethod } from "@/lib/booking";
-import { isShowId, MAX_PROOF_BYTES, type ShowId, type Tier } from "@/lib/event"; // MAX_PROOF_BYTES must match the payment-proofs bucket limit
+import { isShowId, MAX_PROOF_BYTES, MAX_TICKETS, type ShowId, type Tier } from "@/lib/event"; // MAX_PROOF_BYTES must match the payment-proofs bucket limit
 import { clientId, RATE_LIMITED, rateLimited } from "@/lib/rate-limit";
 import { SEATS } from "@/lib/seats";
 import { supabase } from "@/lib/supabase";
@@ -12,7 +12,7 @@ import { checkField, validateBuyer } from "@/lib/validate";
 export type HoldInput = {
   show: string;
   tier: string;
-  seats: string[]; // seat ids, e.g. "C9"; qty = seats.length (1..4)
+  seats: string[]; // seat ids, e.g. "C9"; qty = seats.length (1..MAX_TICKETS)
   buyer: { name: string; email: string; phone: string; org?: string };
   prevOrderId?: string | null; // the buyer's previous hold to release (changing seats)
 };
@@ -58,7 +58,7 @@ export async function holdSeats(input: HoldInput): Promise<HoldResult> {
   if (typeof i.show !== "string" || !isShowId(i.show)) return fail("Show tidak ditemukan.");
   if (typeof i.tier !== "string" || !SALE_TIERS.includes(i.tier)) return fail("Kategori tiket tidak tersedia.");
   const seats = i.seats;
-  if (!Array.isArray(seats) || seats.length < 1 || seats.length > 4) return fail("Pilih 1 sampai 4 kursi.");
+  if (!Array.isArray(seats) || seats.length < 1 || seats.length > MAX_TICKETS) return fail(`Pilih 1 sampai ${MAX_TICKETS} kursi.`);
   if (new Set(seats).size !== seats.length) return fail("Ada kursi yang dipilih dua kali.");
   // SEATS has VIP seats too, but their tier is "VIP", which is never a sale tier, so this rejects them.
   if (!seats.every((id) => typeof id === "string" && SEATS[id]?.tier === i.tier)) return fail("Semua kursi harus dari kategori tiket yang sama.");

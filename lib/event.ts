@@ -47,7 +47,7 @@ export const TIERS: Record<Tier, { title: string; rows: string }> = {
 };
 
 export const SALE_TIERS: Tier[] = ["Platinum", "Gold", "Silver", "Bronze"];
-export const MAX_TICKETS = 4;
+export const MAX_TICKETS = 10;
 export const HOLD_MINUTES = 10;
 export const MAX_PROOF_BYTES = 1024 * 1024;
 export const MAX_PROOF_INPUT_BYTES = 15 * 1024 * 1024; // largest image accepted before client-side compression

@@ -948,6 +948,139 @@ On show day the committee taps **Tandai diambil** in `/admin` (order list or ord
 alter table public.orders add column if not exists claimed_at timestamptz;
 ```
 
+## 11. Raise max tickets per order to 10 (idempotent)
+
+Raises the per-order ticket limit from 4 to 10 (`MAX_TICKETS = 10` in `lib/event.ts`). Existing orders and seats are completely untouched: this only widens the `orders.qty` check constraint (whatever Postgres named it) and updates `hold_seats` to accept 1–10 seats.
+
+> This step replaces `hold_seats`. **If you ever re-run step 6, 8 or 9, re-run this step right after.**
+
+```sql
+-- Widen the qty check constraint on public.orders to allow 1..10 (drops any old 1..4 qty check first, safely).
+do $$
+declare
+  r record;
+begin
+  for r in
+    select c.conname
+      from pg_constraint c
+      join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+     where c.conrelid = 'public.orders'::regclass
+       and c.contype = 'c'
+       and a.attname = 'qty'
+  loop
+    execute format('alter table public.orders drop constraint %I', r.conname);
+  end loop;
+  alter table public.orders add constraint orders_qty_check check (qty between 1 and 10);
+end;
+$$;
+
+-- Same as step 9, with v_qty allowed between 1 and 10.
+create or replace function public.hold_seats(
+  p_show smallint, p_tier text, p_seats text[],
+  p_name text, p_email text, p_phone text, p_org text,
+  p_prev_order uuid default null, p_client text default null
+) returns table (order_id uuid, held_until timestamptz, total int)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_qty   int := coalesce(cardinality(p_seats), 0);
+  v_price int;
+  v_cap   int;
+  v_taken int;
+  v_id    uuid;
+  v_until timestamptz := now() + interval '10 minutes';
+  v_got   text[];
+  v_lost  text[];
+begin
+  if p_show is null or p_show not in (1, 2) then
+    raise exception 'INVALID_SHOW';
+  end if;
+  if v_qty not between 1 and 10 or array_position(p_seats, null) is not null then
+    raise exception 'INVALID_QTY';
+  end if;
+  if (select count(distinct s) from unnest(p_seats) s) <> v_qty then
+    raise exception 'DUPLICATE_SEATS';
+  end if;
+  v_price := public.tier_price(p_tier);
+  if v_price is null then
+    raise exception 'PRICE_NOT_SET';
+  end if;
+
+  -- Live-hold cap per client network (p_client = keyed hash of the buyer's IP, from the server). The advisory lock
+  -- makes parallel requests from one client wait for each other, so they can't all slip under the cap.
+  -- It is taken before any row lock, in every call, so it can't deadlock with them.
+  if p_client is not null then
+    perform pg_advisory_xact_lock(hashtext('hold:' || p_client));
+    if (select count(*) from public.orders
+         where client = p_client and status = 'held' and held_until > now()
+           and id is distinct from p_prev_order) >= 6 then
+      raise exception 'TOO_MANY_HOLDS';
+    end if;
+  end if;
+
+  -- Lock the ticket category first: holds of one category wait for each other here, so the quota
+  -- count below can't be raced. Then the order row, then seat rows in a fixed order (same as submit_order),
+  -- so concurrent holds and payments wait for each other instead of deadlocking.
+  perform 1 from public.tiers where tier = p_tier for update;
+  perform 1 from public.orders where id = p_prev_order for update;
+  perform 1 from public.seats
+   where (show_id = p_show and seat_id = any (p_seats)) or order_id = p_prev_order
+   order by show_id, seat_id
+   for update;
+
+  -- Release the buyer's previous hold, but only while it is still unpaid.
+  if exists (select 1 from public.orders where id = p_prev_order and status = 'held') then
+    update public.seats set order_id = null, held_until = null where order_id = p_prev_order;
+    delete from public.orders where id = p_prev_order;
+  end if;
+
+  -- Quota: seats of this category already taken in this show (paid, invalid or live hold) plus this hold.
+  v_cap := public.tier_cap(p_tier);
+  if v_cap is not null then
+    select count(*) into v_taken
+      from public.seats
+     where show_id = p_show and tier = p_tier
+       and order_id is not null and (held_until is null or held_until > now());
+    if v_taken + v_qty > v_cap then
+      raise exception 'QUOTA_FULL';
+    end if;
+  end if;
+
+  -- presale = this order got the presale price. Derived from v_price (the price actually charged), so it always
+  -- matches the total even if the switch flips mid-hold; same rule as the backfill above.
+  insert into public.orders (show_id, tier, qty, buyer_name, buyer_email, buyer_phone, buyer_org, total, held_until, presale, client)
+  values (p_show, p_tier, v_qty, p_name, p_email, p_phone, nullif(p_org, ''), v_price * v_qty, v_until,
+          (select coalesce(t.price_presale <> t.price_normal and v_price = t.price_presale, false)
+             from public.tiers t where t.tier = p_tier),
+          p_client)
+  returning id into v_id;
+
+  with claimed as (
+    update public.seats
+       set order_id = v_id, held_until = v_until
+     where show_id = p_show
+       and seat_id = any (p_seats)
+       and tier = p_tier
+       and not blocked
+       and (order_id is null or held_until < now())
+    returning seat_id
+  )
+  select coalesce(array_agg(seat_id), '{}') into v_got from claimed;
+
+  if cardinality(v_got) <> v_qty then
+    v_lost := array(select s from unnest(p_seats) s where s <> all (v_got) order by s);
+    raise exception 'SEATS_TAKEN' using detail = array_to_string(v_lost, ',');
+  end if;
+
+  return query select v_id, v_until, v_price * v_qty;
+end;
+$$;
+revoke all on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) from public, anon, authenticated;
+grant execute on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) to service_role;
+```
+
 ---
 
 Everything below is **not** a setup step. Run it only when you need it.
