@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/ui/stepper";
 import { allowedStep, useBooking } from "@/lib/booking";
 import { EVENT, SHOWS, formatRupiah } from "@/lib/event";
+import { referralPrice } from "@/lib/referral";
 
 export type Step = 1 | 2 | 3 | 4 | 5;
 const STEP_PATH: Record<Step, string> = { 1: "pilih-tiket", 2: "data-diri", 3: "kursi", 4: "bayar", 5: "selesai" };
@@ -52,10 +53,16 @@ function CtaButton({ cta, fullWidth }: { cta: Cta; fullWidth?: boolean }) {
 /** "Nama × n" + total: the server total once seats are held, otherwise unit price × qty (display only). */
 export function useOrderLines() {
   const { booking } = useBooking();
-  const { tier, qty, price, total: held } = booking;
+  const { tier, qty, price, total: held, referralCode, referralDiscount } = booking;
   const n = booking.seats.length || qty;
-  const amount = held ?? (price === null ? null : price * n);
-  const lines = tier ? [{ label: `${tier} × ${n}`, value: formatRupiah(amount) }] : [];
+  const unit = referralPrice(price, referralDiscount);
+  const amount = held ?? (unit === null ? null : unit * n);
+  const lines = tier
+    ? [
+        { label: `${tier} × ${n}`, value: formatRupiah(amount) },
+        ...(referralCode ? [{ label: "Kode referral", value: referralCode }] : []),
+      ]
+    : [];
   return { lines, total: formatRupiah(amount) };
 }
 
@@ -136,22 +143,27 @@ const BACK: Record<Step, { label: string; step: Step | null }> = {
 /**
  * Page frame for every checkout step: navbar (no CTA), back link + stepper, two-column main
  * (content + 320px aside on desktop), optional mobile bottom bar, footer.
+ * `topSlot` sits between the back link and the stepper on mobile; on desktop it moves to its own
+ * full-width row just below the back/stepper row.
  */
-export function CheckoutShell({ step, aside, bottomBar, children }: { step: Step; aside?: React.ReactNode; bottomBar?: React.ReactNode; children: React.ReactNode }) {
+export function CheckoutShell({ step, aside, bottomBar, topSlot, children }: { step: Step; aside?: React.ReactNode; bottomBar?: React.ReactNode; topSlot?: React.ReactNode; children: React.ReactNode }) {
   const { show } = useBooking();
   const back = BACK[step];
   return (
     <>
       <Navbar cta={false} />
       <div className="mx-auto w-full max-w-[1440px] flex-1">
-        <div data-reveal="fade" className="flex flex-col gap-4 px-4 pt-4 lg:flex-row lg:items-center lg:justify-between lg:px-20 lg:pt-6">
-          <div className="lg:w-40">
+        <div data-reveal="fade" className="flex flex-col gap-4 px-4 pt-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-20 lg:pt-6">
+          <div className="order-1 lg:w-40">
             <Button variant="ghost" icon="arrow-left" iconStart href={back.step ? stepHref(show, back.step) : "/"}>
               {back.label}
             </Button>
           </div>
-          <Stepper step={step} />
-          <div className="hidden lg:block lg:w-40" />
+          {topSlot && <div className="order-2 lg:order-4 lg:basis-full">{topSlot}</div>}
+          <div className="order-3 lg:order-3">
+            <Stepper step={step} />
+          </div>
+          <div className="hidden lg:order-2 lg:block lg:w-40" />
         </div>
         <main className="flex flex-col gap-4 px-4 pb-6 pt-4 lg:flex-row lg:items-start lg:gap-6 lg:px-20 lg:pb-24 lg:pt-8">
           <div className="flex min-w-0 flex-1 flex-col gap-4 lg:gap-6">{children}</div>

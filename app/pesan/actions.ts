@@ -5,6 +5,7 @@
 import type { PayMethod } from "@/lib/booking";
 import { isShowId, MAX_PROOF_BYTES, MAX_TICKETS, type ShowId, type Tier } from "@/lib/event"; // MAX_PROOF_BYTES must match the payment-proofs bucket limit
 import { clientId, RATE_LIMITED, rateLimited } from "@/lib/rate-limit";
+import { normalizeReferralCode, REFERRAL_CODE_MAX, REFERRAL_DISCOUNT } from "@/lib/referral";
 import { SEATS } from "@/lib/seats";
 import { supabase } from "@/lib/supabase";
 import { checkField, validateBuyer } from "@/lib/validate";
@@ -14,13 +15,16 @@ export type HoldInput = {
   tier: string;
   seats: string[]; // seat ids, e.g. "C9"; qty = seats.length (1..MAX_TICKETS)
   buyer: { name: string; email: string; phone: string; org?: string };
+  referralCode?: string | null; // optional; validated and priced by Postgres
   prevOrderId?: string | null; // the buyer's previous hold to release (changing seats)
 };
 export type HoldResult =
   | { ok: true; orderId: string; heldUntil: number; total: number } // heldUntil: epoch ms
-  | { ok: false; error: string; lost?: string[] }; // lost: seats someone else took first
+  | { ok: false; error: string; lost?: string[]; referralInvalid?: boolean }; // lost: seats someone else took first
 
-export type SubmitResult = { ok: true; code: string; paidAt: number } | { ok: false; error: string }; // paidAt: epoch ms
+export type SubmitResult =
+  | { ok: true; code: string; paidAt: number }
+  | { ok: false; error: string; reset?: "referral" | "price" }; // reset: send the buyer back to step 1
 
 export type Ticket = {
   code: string;
@@ -35,6 +39,7 @@ export type Ticket = {
   paidAt: number; // epoch ms
 };
 export type LookupResult = { ok: true; ticket: Ticket } | { ok: false; error: string };
+export type ReferralResult = { ok: true; code: string; label: string; discount: number } | { ok: false; error: string };
 
 const SALE_TIERS = ["Platinum", "Gold", "Silver", "Bronze"];
 const PROOF_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "application/pdf": "pdf" };
@@ -44,13 +49,63 @@ const BUCKET = "payment-proofs";
 
 const GENERIC = "Maaf, ada gangguan di sistem kami. Coba lagi sebentar lagi ya.";
 const EXPIRED = "Waktu pembayaran habis dan kursimu sudah dilepas. Pilih kursi lagi ya.";
+const REFERRAL_INVALID = "Kode tidak valid.";
+const REFERRAL_INVALID_LONG = "Kode referral sudah tidak berlaku. Kembali ke langkah 1 untuk lanjut dengan harga normal ya.";
+const PRICE_CHANGED = "Harga tiket berubah sejak kamu memilih. Kembali ke langkah 1 untuk melihat harga terbaru ya.";
+const REFERRAL_RE = /^[A-Z0-9-]{3,32}$/;
 
 type DbError = { message: string; details?: string | null; code?: string };
 const fail = (error: string) => ({ ok: false as const, error });
+
+/** null = no code, false = malformed input, otherwise the normalized code. */
+function cleanReferral(value: unknown): string | null | false {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return false;
+  const code = normalizeReferralCode(value);
+  if (!code) return null;
+  return code.length <= REFERRAL_CODE_MAX && REFERRAL_RE.test(code) ? code : false;
+}
 // Message and code only: Postgres error details can echo buyer data.
 function logError(where: string, e: unknown) {
   const { message, code } = (e ?? {}) as { message?: string; code?: string };
   console.error(`[checkout] ${where}`, code ?? "", message ?? String(e));
+}
+
+/** Step 1 check: does this code exist, active and under its quota? Rate-limited against guessing. */
+export async function validateReferral(input: string): Promise<ReferralResult> {
+  const code = cleanReferral(input);
+  if (code === false) return fail(REFERRAL_INVALID);
+  if (!code) return fail("Masukkan kode referral dulu ya.");
+  if (await rateLimited("referral")) return fail(RATE_LIMITED);
+
+  try {
+    const db = supabase();
+    const { data, error } = await db
+      .from("referral_codes")
+      .select("code, label, is_active, max_uses")
+      .eq("code", code)
+      .maybeSingle<{ code: string; label: string; is_active: boolean; max_uses: number | null }>();
+    if (error) throw error;
+    if (!data || !data.is_active) return fail(REFERRAL_INVALID);
+
+    if (data.max_uses !== null) {
+      const { count, error: countErr } = await db
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("referral_code", data.code)
+        .eq("status", "valid");
+      if (countErr) throw countErr;
+      if ((count ?? 0) >= data.max_uses) return fail(REFERRAL_INVALID);
+    }
+
+    return { ok: true, code: data.code, label: data.label, discount: REFERRAL_DISCOUNT };
+  } catch (e) {
+    const err = (e ?? {}) as DbError;
+    // Before backend.md step 12 runs, the table does not exist. Say so instead of a scary generic error.
+    if (err.code === "42P01" || err.code === "PGRST205") return fail("Kode referral belum aktif. Coba lagi nanti ya.");
+    logError("validateReferral", e);
+    return fail(GENERIC);
+  }
 }
 
 export async function holdSeats(input: HoldInput): Promise<HoldResult> {
@@ -64,6 +119,8 @@ export async function holdSeats(input: HoldInput): Promise<HoldResult> {
   if (!seats.every((id) => typeof id === "string" && SEATS[id]?.tier === i.tier)) return fail("Semua kursi harus dari kategori tiket yang sama.");
   const buyer = validateBuyer(i.buyer);
   if (!buyer.ok) return buyer;
+  const referral = cleanReferral(i.referralCode);
+  if (referral === false) return fail(REFERRAL_INVALID);
   const prev = typeof i.prevOrderId === "string" && UUID.test(i.prevOrderId) ? i.prevOrderId : null;
   if (await rateLimited("hold")) return fail(RATE_LIMITED); // stops one client from holding the whole house
 
@@ -78,12 +135,16 @@ export async function holdSeats(input: HoldInput): Promise<HoldResult> {
       p_org: buyer.buyer.org,
       p_prev_order: prev,
     };
-    const hold = (a: typeof args & { p_client?: string | null }) =>
+    const hold = (a: typeof args & { p_client?: string | null; p_referral?: string | null }) =>
       supabase().rpc("hold_seats", a).single<{ order_id: string; held_until: string; total: number }>();
-    let { data, error } = await hold({ ...args, p_client: await clientId() });
-    // ponytail: PGRST202 = no hold_seats with p_client yet (backend.md step 9 not run). Retry the old signature so
-    // checkout keeps working; delete this once step 9 is live.
-    if (error?.code === "PGRST202") ({ data, error } = await hold(args));
+    const client = await clientId();
+    let { data, error } = await hold({ ...args, p_client: client, p_referral: referral });
+    // ponytail: PGRST202 = no hold_seats with p_client/p_referral yet (backend.md step 9/12 not run). Retry the
+    // older signature so checkout keeps working, but never silently drop a referral code the buyer typed.
+    if (error?.code === "PGRST202") {
+      if (referral) return fail("Kode referral belum bisa dipakai. Coba lagi sebentar lagi atau lanjut tanpa kode ya.");
+      ({ data, error } = await hold({ ...args, p_client: client }));
+    }
     if (error || !data) return holdError(error ?? { message: "NO_DATA" });
     return { ok: true, orderId: data.order_id, heldUntil: Date.parse(data.held_until), total: data.total };
   } catch (e) {
@@ -98,6 +159,7 @@ function holdError(e: DbError): HoldResult {
     return { ok: false, error: `Kursi ${lost.join(", ")} baru saja diambil orang lain. Pilih kursi lain ya.`, lost };
   }
   if (e.message === "PRICE_NOT_SET") return fail("Kategori tiket ini belum dibuka. Coba lagi nanti ya.");
+  if (e.message === "REFERRAL_INVALID") return { ok: false, error: REFERRAL_INVALID_LONG, referralInvalid: true };
   if (e.message === "QUOTA_FULL") return fail("Kuota kategori ini sudah habis. Kembali dan pilih kategori lain ya.");
   if (e.message === "TOO_MANY_HOLDS") return fail("Terlalu banyak pesanan yang belum dibayar dari jaringanmu. Selesaikan atau tunggu 10 menit, lalu coba lagi ya.");
   logError("hold_seats", e);
@@ -181,6 +243,9 @@ async function paidNow(orderId: string): Promise<SubmitResult | null> {
 function submitError(e: DbError): SubmitResult {
   if (e.message === "HOLD_EXPIRED") return fail(EXPIRED);
   if (e.message === "ORDER_NOT_FOUND") return fail("Pesanan tidak ditemukan. Mulai pesan lagi ya.");
+  if (e.message === "REFERRAL_INVALID") return { ok: false, error: REFERRAL_INVALID_LONG, reset: "referral" };
+  if (e.message === "PRICE_CHANGED") return { ok: false, error: PRICE_CHANGED, reset: "price" };
+  if (e.message === "PRICE_NOT_SET") return { ok: false, error: "Kategori tiket ini sudah tidak dijual. Kembali ke langkah 1 untuk pilih kategori lain ya.", reset: "price" };
   logError("submit_order", e);
   return fail(GENERIC);
 }

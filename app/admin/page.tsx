@@ -21,12 +21,20 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const harga = one(sp.harga);
 
   const needle = q.toLowerCase();
+  const matchesHarga = (o: (typeof orders)[number]) => {
+    if (harga === "referral") return o.referral;
+    // Referral is a discount on top of the active mode; keep the three options mutually exclusive so
+    // "Presale"/"Normal" mean orders that did not also use a referral code.
+    if (harga === "presale") return !o.referral && o.presale;
+    if (harga === "normal") return !o.referral && !o.presale;
+    return true;
+  };
   const shown = orders.filter(
     (o) =>
       (!show || o.show === show) &&
       (!(cek in CEK) || o.checked === CEK[cek as keyof typeof CEK]) &&
-      (harga !== "presale" && harga !== "normal" || o.presale === (harga === "presale")) &&
-      (!needle || [o.code, o.buyer.name, o.buyer.email, o.buyer.phone, ...o.seats].some((s) => s.toLowerCase().includes(needle))),
+      matchesHarga(o) &&
+      (!needle || [o.code, o.buyer.name, o.buyer.email, o.buyer.phone, o.referralCode ?? "", ...o.seats].some((s) => s.toLowerCase().includes(needle))),
   );
   const filtered = orders.length > 0 && shown.length === 0;
 

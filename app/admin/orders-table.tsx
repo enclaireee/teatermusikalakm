@@ -40,7 +40,7 @@ export function OrdersTable({ orders }: { orders: AdminOrder[] }) {
               <td className={`${TD} max-w-48 min-w-0`}>
                 <Link href={`/admin/${o.id}`} className="block truncate text-text-strong hover:underline">{o.buyer.name}</Link>
                 <p className="type-caption text-text-secondary">{o.buyer.phone}</p>
-                <p className="type-caption text-text-secondary md:hidden">{SHOWS[o.show].label} · {o.qty} tiket · {formatRupiah(o.total)}{o.presale ? " · Presale" : ""}</p>
+                <p className="type-caption text-text-secondary md:hidden">{SHOWS[o.show].label} · {o.qty} tiket · {formatRupiah(o.total)}{o.referral ? ` · Referral ${o.referralCode ?? ""}` : o.presale ? " · Presale" : ""}</p>
                 <div className="mt-1 w-fit"><ProofButton order={o} /></div>
               </td>
               <td className={TD}>
@@ -53,7 +53,12 @@ export function OrdersTable({ orders }: { orders: AdminOrder[] }) {
               <td className={`${TD} hidden md:table-cell`}>{o.tier} · {o.seats.join(", ")}</td>
               <td className={`${TD} hidden text-right tabular-nums whitespace-nowrap md:table-cell`}>{formatRupiah(o.total)}</td>
               <td className={`${TD} hidden lg:table-cell`}>{o.method ? METHOD_LABEL[o.method] : "—"}</td>
-              <td className={`${TD} hidden lg:table-cell`}><HargaChip presale={o.presale} /></td>
+              <td className={`${TD} hidden lg:table-cell`}>
+                <div className="flex flex-col items-start gap-0.5">
+                  <HargaChip presale={o.presale} referral={o.referral} />
+                  {o.referral && <span className="type-caption whitespace-nowrap text-text-secondary">{o.referralCode}{o.discountPerTicket ? ` · −${formatRupiah(o.discountPerTicket)}/tiket` : ""}</span>}
+                </div>
+              </td>
               <td className={`${TD} hidden lg:table-cell`}><BuyerChip status={o.status} /></td>
               <td className={`${TD} hidden whitespace-nowrap xl:table-cell`}>{formatWib(o.paidAt)}</td>
             </tr>

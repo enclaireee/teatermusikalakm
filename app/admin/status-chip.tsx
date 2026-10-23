@@ -30,13 +30,17 @@ const WIB = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "n
 export const formatWib = (iso: string | null) => (iso ? WIB.format(new Date(iso)) : "—");
 export const METHOD_LABEL = { qris: "QRIS", transfer: "Transfer" } as const;
 
-export function HargaChip({ presale }: { presale: boolean }) {
+export function HargaChip({ presale, referral = false }: { presale: boolean; referral?: boolean }) {
+  const label = referral ? "Referral" : presale ? "Presale" : "Normal";
+  const detail = referral ? `Referral (${presale ? "Presale" : "Normal"})` : label;
+  const style = referral
+    ? "border-border-brand bg-bg-brand-soft text-text-brand"
+    : presale
+      ? "border-border-default bg-bg-accent text-text-strong"
+      : "border-border-subtle bg-bg-muted text-text-primary";
   return (
-    <span
-      aria-label={`Harga: ${presale ? "Presale" : "Normal"}`}
-      className={`${CHIP} ${presale ? "border-border-default bg-bg-accent text-text-strong" : "border-border-subtle bg-bg-muted text-text-primary"}`}
-    >
-      {presale ? "Presale" : "Normal"}
+    <span aria-label={`Harga: ${detail}`} className={`${CHIP} ${style}`}>
+      {label}
     </span>
   );
 }

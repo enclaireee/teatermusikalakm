@@ -12,7 +12,11 @@ export type Booking = {
   buyer: Buyer | null; // set when step 1 (Data Diri) is submitted
   tier: Tier | null; // one tier per order
   tierName: string | null; // display name of the tier (e.g. "Platinum")
-  price: number | null; // unit price shown at selection time (display only)
+  price: number | null; // active unit price at selection time (display only; the server recomputes it)
+  referralCode: string | null; // applied code, e.g. "KODEKOMUNITAS"
+  referralLabel: string | null; // community name from referral_codes
+  referralDiscount: number; // per ticket; 0 = no referral
+  notice: string | null; // one-off message shown on step 1 after the server rejects a stale price/code
   qty: number;
   seats: string[]; // seat ids, e.g. "C9"
   orderId: string | null; // server order, set by holdSeats
@@ -25,7 +29,7 @@ export type Booking = {
   paidAt: number | null;
 };
 
-const EMPTY: Booking = { buyer: null, tier: null, tierName: null, price: null, qty: 1, seats: [], orderId: null, heldSeats: [], holdUntil: null, priceChanged: false, total: null, method: "qris", code: null, paidAt: null };
+const EMPTY: Booking = { buyer: null, tier: null, tierName: null, price: null, referralCode: null, referralLabel: null, referralDiscount: 0, notice: null, qty: 1, seats: [], orderId: null, heldSeats: [], holdUntil: null, priceChanged: false, total: null, method: "qris", code: null, paidAt: null };
 
 type Ctx = {
   show: ShowId;

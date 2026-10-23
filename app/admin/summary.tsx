@@ -1,5 +1,5 @@
 import type { AdminOrder } from "@/lib/admin";
-import { SHOWS } from "@/lib/event";
+import { SHOWS, formatRupiah } from "@/lib/event";
 import { CHECK_LABEL, CHECK_STYLE, type CheckKey } from "./status-chip";
 
 const CARD = "min-w-0 rounded-md border-2 border-border-default bg-bg-surface bg-paper";
@@ -19,8 +19,16 @@ export function Summary({ orders }: { orders: AdminOrder[] }) {
     ["valid", count(true), "text-text-brand"],
     ["tidak", count(false), "text-text-danger"],
   ];
+  const referral = orders.filter((o) => o.referral);
+  const referralTickets = referral.reduce((n, o) => n + o.qty, 0);
+  const referralDiscount = referral.reduce((n, o) => n + o.qty * o.discountPerTicket, 0);
+  const ref: [string, string][] = [
+    ["Pesanan", String(referral.length)],
+    ["Tiket", String(referralTickets)],
+    ["Potongan", formatRupiah(referralDiscount)],
+  ];
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid gap-4 xl:grid-cols-3">
       <section className={CARD} aria-labelledby="sum-tiket">
         <h2 id="sum-tiket" className="type-label border-b-2 border-border-default px-3 py-2 text-text-strong">Tiket</h2>
         <dl className={GRID}>
@@ -39,6 +47,17 @@ export function Summary({ orders }: { orders: AdminOrder[] }) {
             <div key={k} className="flex min-w-0 flex-col items-start gap-1 p-3">
               <dt className={`type-caption max-w-full truncate rounded-full border-2 px-2 py-0.5 ${CHECK_STYLE[k]}`}>{CHECK_LABEL[k]}</dt>
               <dd className={`${NUM} ${color}`}>{n}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+      <section className={CARD} aria-labelledby="sum-referral">
+        <h2 id="sum-referral" className="type-label border-b-2 border-border-default px-3 py-2 text-text-strong">Referral</h2>
+        <dl className={GRID}>
+          {ref.map(([label, value]) => (
+            <div key={label} className="flex min-w-0 flex-col gap-1 p-3">
+              <dt className="type-caption text-text-secondary">{label}</dt>
+              <dd className={`${NUM} text-text-strong`}>{value}</dd>
             </div>
           ))}
         </dl>

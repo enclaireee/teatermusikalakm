@@ -12,6 +12,7 @@ const LIMITS = {
   hold: [40, 600],
   submit: [10, 600], // a real buyer submits once or twice; each "paid" fake still needs a proof the committee rejects
   lookup: [30, 600],
+  referral: [20, 600], // keeps code guessing impractical without punishing a real buyer who mistypes
   login: [10, 900],
 } as const;
 

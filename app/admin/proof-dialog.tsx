@@ -55,7 +55,10 @@ export function ProofButton({ order, variant = "compact" }: { order: AdminOrder;
     ["Kursi", `${SHOWS[o.show].label} · ${o.tier} · ${o.seats.join(", ")}`],
     ["Total", formatRupiah(o.total)],
     ["Metode", o.method ? METHOD_LABEL[o.method] : "—"],
-    ["Harga", <HargaChip key="h" presale={o.presale} />],
+    ["Harga", <HargaChip key="h" presale={o.presale} referral={o.referral} />],
+    ...(o.referral
+      ? [[`Kode referral`, `${o.referralCode ?? "—"} · −${formatRupiah(o.discountPerTicket)}/tiket`] as [string, string]]
+      : []),
   ];
 
   return (

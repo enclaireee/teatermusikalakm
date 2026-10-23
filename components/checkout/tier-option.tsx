@@ -3,15 +3,17 @@ import { TierMinimap } from "@/components/seat/tier-minimap";
 import { TIERS, formatRupiah, type Tier } from "@/lib/event";
 import type { TierAvailability } from "@/lib/use-availability";
 
-type Props = { name: string; info: TierAvailability | undefined; extraLeft?: number; tier: Tier; presale: boolean; checked: boolean; onChange: (tier: Tier) => void };
+type Props = { name: string; info: TierAvailability | undefined; extraLeft?: number; tier: Tier; presale: boolean; discount?: number; checked: boolean; onChange: (tier: Tier) => void };
 
 /** Radio card for one sale tier; sold-out or not-on-sale tiers are disabled. */
-export function TierOption({ name, info, extraLeft = 0, tier, presale, checked, onChange }: Props) {
+export function TierOption({ name, info, extraLeft = 0, tier, presale, discount = 0, checked, onChange }: Props) {
   const named = !!info?.name && info.name !== tier;
   const price = info?.price ?? null;
+  const final = price === null ? null : Math.max(0, price - discount);
   const left = (info?.left ?? 0) + (info ? extraLeft : 0);
   const disabled = price === null || left <= 0;
   const onPresale = presale && price !== null && info?.priceNormal != null && info.priceNormal !== price;
+  const promo = discount > 0 && price !== null;
   const state = disabled
     ? "cursor-not-allowed border-2 border-border-subtle bg-bg-disabled"
     : checked
@@ -33,13 +35,20 @@ export function TierOption({ name, info, extraLeft = 0, tier, presale, checked, 
       </span>
       <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
         {onPresale && <span className="type-caption rounded-full border-2 border-border-default bg-bg-accent px-2 text-text-strong">PRESALE</span>}
-        {onPresale && (
+        {promo ? (
           <s className={`type-caption ${muted}`}>
-            <span className="sr-only">harga normal </span>
-            {formatRupiah(info!.priceNormal)}
+            <span className="sr-only">harga sebelum diskon </span>
+            {formatRupiah(price)}
           </s>
+        ) : (
+          onPresale && (
+            <s className={`type-caption ${muted}`}>
+              <span className="sr-only">harga normal </span>
+              {formatRupiah(info!.priceNormal)}
+            </s>
+          )
         )}
-        <span className={`type-body-m ${disabled ? "text-text-disabled" : "text-text-strong"}`}>{formatRupiah(price)}</span>
+        <span className={`type-body-m ${disabled ? "text-text-disabled" : "text-text-strong"}`}>{formatRupiah(promo ? final : price)}</span>
         <span className={`type-caption ${disabled ? "text-text-strong" : muted}`}>{note}</span>
       </span>
     </label>

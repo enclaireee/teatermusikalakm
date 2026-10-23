@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ReferralField } from "@/components/checkout/referral";
 import { BottomBar, CheckoutCard, CheckoutShell, OrderSummary, stepHref } from "@/components/checkout/shell";
 import { TierOption } from "@/components/checkout/tier-option";
 import { RevealText } from "@/components/site/reveal-text";
@@ -41,6 +42,19 @@ function Form() {
   const maxQty = info ? Math.max(1, Math.min(MAX_TICKETS, leftOf(tier))) : MAX_TICKETS;
   const n = Math.min(qty, maxQty);
   const presale = avail.data?.presale;
+  const discount = booking.referralCode ? booking.referralDiscount : 0;
+
+  // Keep the display total on the live price. If the admin flips presale while this page is open,
+  // the cards and the footer follow immediately (the server still recomputes the real total).
+  const livePrice = info?.price;
+  useEffect(() => {
+    if (!info || booking.price === livePrice) return;
+    update({
+      price: livePrice,
+      // an old hold was priced differently, so it can no longer be used as-is
+      ...(booking.holdUntil ? { heldSeats: [], holdUntil: null, total: null, priceChanged: false } : {}),
+    });
+  }, [info, livePrice, booking.price, booking.holdUntil, update]);
 
   function checkTier(t: Tier | null): string | undefined {
     if (!t) return "Pilih kategori tiket dulu ya.";
@@ -61,7 +75,7 @@ function Form() {
     // a different tier or quantity invalidates seats and hold; orderId stays so the next holdSeats releases it
     const changed = tier !== booking.tier || n !== booking.qty;
     update({
-      tier, tierName: info.name, price: info.price, qty: n, priceChanged: false,
+      tier, tierName: info.name, price: info.price, qty: n, priceChanged: false, notice: null,
       ...(changed ? { seats: [], holdUntil: null, total: null } : {}),
     });
     router.push(stepHref(show, 2));
@@ -70,6 +84,7 @@ function Form() {
   return (
     <CheckoutShell
       step={1}
+      topSlot={<ReferralField />}
       aside={<OrderSummary />}
       bottomBar={<BottomBar info={`${SHOWS[show].label} · ${n} tiket`} cta={{ label: "Lanjut Isi Data", type: "submit", form: FORM_ID }} />}
     >
@@ -79,6 +94,7 @@ function Form() {
             <RevealText as="h1" text="Pilih kategori tiket" className="type-h2 text-text-brand" />
             <p data-reveal="up" className="type-body-m text-text-secondary">Satu kategori per pesanan, maks. {MAX_TICKETS} tiket. Kursinya kamu pilih nanti.</p>
           </div>
+          {booking.notice && <Alert type="warning" title="Cek lagi pesananmu">{booking.notice}</Alert>}
           {error && <div id="tier-error"><Alert type="error" title="Tiketnya belum bisa dilanjut">{error}</Alert></div>}
           <div data-reveal="up" className="flex flex-col gap-5 lg:gap-6">
             <div id="f-tier" tabIndex={-1} className="flex flex-col gap-2 focus:outline-none">
@@ -105,6 +121,7 @@ function Form() {
                       info={avail.data?.tiers.find((x) => x.tier === t)}
                       extraLeft={own(t)}
                       presale={!!presale?.active}
+                      discount={discount}
                       checked={tier === t}
                       onChange={(v) => {
                         setTier(v);

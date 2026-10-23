@@ -2,7 +2,7 @@
 
 The checkout's source of truth lives in Supabase: seat holds, orders and payment proofs. The Next.js server talks to it with the **secret key** only (server actions in `app/pesan/actions.ts`, the API route `app/api/show/[show]`). The browser never talks to Supabase directly, so every table is locked down (RLS on, no policies, no grants to `anon`/`authenticated`).
 
-**Numbered steps (1–10) are the only SQL you must run**: in order, in Supabase Dashboard → **SQL Editor**, one new query per step, paste, Run. Every numbered step is safe to re-run. Everything after them (checks, changing prices or quotas, maintenance) is unnumbered: run it only when you need it.
+**Numbered steps (1–12) are the only SQL you must run**: in order, in Supabase Dashboard → **SQL Editor**, one new query per step, paste, Run. Every numbered step is safe to re-run. Everything after them (checks, changing prices or quotas, maintenance) is unnumbered: run it only when you need it.
 
 > **Already ran the old version of this doc (steps 1–7)?** Those are steps 1–5 now. Run **step 6** and **step 7**.
 >
@@ -13,6 +13,28 @@ The checkout's source of truth lives in Supabase: seat holds, orders and payment
 > **Already ran steps 1–8?** Run **step 9** and **step 10**.
 >
 > **Already ran steps 1–9?** Run **step 10** only (ticket claimed).
+>
+> **Already ran steps 1–10?** Run **step 11** and **step 12**.
+>
+> **Already ran steps 1–11?** Run **step 12** only.
+
+## Next step: run step 12 (referral codes) on Supabase
+
+The referral feature is in the app code but **not yet in your Supabase project**. Run this before deploying:
+
+1. Open your Supabase project → **SQL Editor** → **New query**.
+2. Paste the whole SQL block from **step 12** (it starts at `create table if not exists public.referral_codes`) and click **Run**.
+3. It is idempotent and safe with the existing orders: they stay non-referral (`referral = false`, `discount_per_ticket = 0`).
+4. Check that the seed code is there:
+
+```sql
+select code, label, is_active, max_uses from public.referral_codes;
+-- expect: NEMUBARENGAN | Komunitas Nemu Barengan | true | null
+```
+
+5. Only then deploy the app. `/admin` reads `referral_code`, `referral` and `discount_per_ticket`, so it errors until step 12 has run.
+
+The code is **NEMUBARENGAN**, seeded by step 12. Add or change codes later with the SQL snippet at the end of step 12 (no redeploy needed), or with `scripts/add-referral-code.ts`.
 
 How it works, in short:
 
@@ -1080,6 +1102,296 @@ $$;
 revoke all on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) from public, anon, authenticated;
 grant execute on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text) to service_role;
 ```
+
+## 12. Referral codes (idempotent)
+
+Community referral codes take **Rp5.000 off each ticket**, on top of whichever price is active (presale or normal). A code is optional: orders without one behave exactly as before. The server validates the code and recomputes the total; the browser never sends a price.
+
+- Add or change codes in `public.referral_codes`. A code can be used by many orders; set `max_uses` to cap it (`null` = unlimited).
+- `orders.referral_code`, `orders.referral` and `orders.discount_per_ticket` make referral orders filterable and reversible in `/admin`. Old orders are not referrals (`referral = false`, discount `0`).
+- **This step replaces `hold_seats` and `submit_order`.** If you ever re-run step 4, 6, 8, 9 or 11, re-run this step right after.
+- Run this **before** deploying the code that reads these columns: `/admin` fails to load without them.
+
+```sql
+create table if not exists public.referral_codes (
+  code       text primary key check (code = upper(code) and code ~ '^[A-Z0-9-]{3,32}$'),
+  label      text not null,                         -- community name, shown to buyers after applying
+  is_active  boolean not null default true,
+  max_uses   int check (max_uses is null or max_uses > 0),
+  created_at timestamptz not null default now()
+);
+
+alter table public.referral_codes enable row level security;
+revoke all on public.referral_codes from public, anon, authenticated;
+grant select, insert, update, delete on public.referral_codes to service_role;
+
+-- The code from the community broadcast. Change the label to the community's real name if needed.
+insert into public.referral_codes (code, label)
+values ('NEMUBARENGAN', 'Komunitas Nemu Barengan')
+on conflict (code) do nothing;
+
+-- Per-order referral snapshot. Defaults keep every existing order a non-referral order.
+alter table public.orders add column if not exists referral_code text references public.referral_codes(code) on update cascade on delete set null;
+alter table public.orders add column if not exists referral boolean not null default false;
+alter table public.orders add column if not exists discount_per_ticket int not null default 0 check (discount_per_ticket >= 0);
+create index if not exists orders_referral_code_idx on public.orders (referral_code);
+
+-- Only one hold_seats signature should exist. Drop the older ones first.
+drop function if exists public.hold_seats(smallint, text, text[], text, text, text, text, uuid);
+drop function if exists public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text);
+
+-- Same as step 11, plus p_referral. The code is validated under a row lock (so deactivation / max_uses
+-- can't race), and the discount is applied to the active price. The client never supplies a price.
+create or replace function public.hold_seats(
+  p_show smallint, p_tier text, p_seats text[],
+  p_name text, p_email text, p_phone text, p_org text,
+  p_prev_order uuid default null, p_client text default null,
+  p_referral text default null
+) returns table (order_id uuid, held_until timestamptz, total int)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_qty      int := coalesce(cardinality(p_seats), 0);
+  v_price    int;
+  v_discount int := 0;
+  v_ref      text := upper(btrim(p_referral));
+  v_ref_ok   boolean;
+  v_ref_max  int;
+  v_cap      int;
+  v_taken    int;
+  v_id       uuid;
+  v_until    timestamptz := now() + interval '10 minutes';
+  v_got      text[];
+  v_lost     text[];
+begin
+  if p_show is null or p_show not in (1, 2) then
+    raise exception 'INVALID_SHOW';
+  end if;
+  if v_qty not between 1 and 10 or array_position(p_seats, null) is not null then
+    raise exception 'INVALID_QTY';
+  end if;
+  if (select count(distinct s) from unnest(p_seats) s) <> v_qty then
+    raise exception 'DUPLICATE_SEATS';
+  end if;
+  v_price := public.tier_price(p_tier);
+  if v_price is null then
+    raise exception 'PRICE_NOT_SET';
+  end if;
+
+  if v_ref = '' then
+    v_ref := null;
+  end if;
+
+  -- Live-hold cap per client network (p_client = keyed hash of the buyer's IP, from the server). The advisory lock
+  -- makes parallel requests from one client wait for each other, so they can't all slip under the cap.
+  -- It is taken before any row lock, in every call, so it can't deadlock with them.
+  if p_client is not null then
+    perform pg_advisory_xact_lock(hashtext('hold:' || p_client));
+    if (select count(*) from public.orders
+         where client = p_client and status = 'held' and held_until > now()
+           and id is distinct from p_prev_order) >= 6 then
+      raise exception 'TOO_MANY_HOLDS';
+    end if;
+  end if;
+
+  -- Lock the ticket category first: holds of one category wait for each other here, so the quota
+  -- count below can't be raced. Then the referral code, the order row, and seat rows in a fixed order
+  -- (same as submit_order), so concurrent holds, payments and admin edits wait instead of deadlocking.
+  perform 1 from public.tiers where tier = p_tier for update;
+
+  if v_ref is not null then
+    select r.is_active, r.max_uses into v_ref_ok, v_ref_max
+      from public.referral_codes r where r.code = v_ref for update;
+    if not found or v_ref_ok is not true then
+      raise exception 'REFERRAL_INVALID';
+    end if;
+    -- Paid uses only: an abandoned hold never burns a limited code.
+    if v_ref_max is not null
+       and (select count(*) from public.orders o
+             where o.referral_code = v_ref and o.status = 'valid') >= v_ref_max then
+      raise exception 'REFERRAL_INVALID';
+    end if;
+    v_discount := least(5000, v_price); -- never negative, even if a category is priced below 5.000
+  end if;
+
+  perform 1 from public.orders where id = p_prev_order for update;
+  perform 1 from public.seats
+   where (show_id = p_show and seat_id = any (p_seats)) or order_id = p_prev_order
+   order by show_id, seat_id
+   for update;
+
+  -- Release the buyer's previous hold, but only while it is still unpaid.
+  if exists (select 1 from public.orders where id = p_prev_order and status = 'held') then
+    update public.seats set order_id = null, held_until = null where order_id = p_prev_order;
+    delete from public.orders where id = p_prev_order;
+  end if;
+
+  -- Quota: seats of this category already taken in this show (paid, invalid or live hold) plus this hold.
+  v_cap := public.tier_cap(p_tier);
+  if v_cap is not null then
+    select count(*) into v_taken
+      from public.seats
+     where show_id = p_show and tier = p_tier
+       and order_id is not null and (held_until is null or held_until > now());
+    if v_taken + v_qty > v_cap then
+      raise exception 'QUOTA_FULL';
+    end if;
+  end if;
+
+  -- presale is derived from v_price (the active price actually charged), so it matches the total even if the
+  -- switch flips mid-hold; same rule as step 8. Referral is an additional snapshot, never a third price mode.
+  insert into public.orders (show_id, tier, qty, buyer_name, buyer_email, buyer_phone, buyer_org, total, held_until, presale, client, referral_code, referral, discount_per_ticket)
+  values (p_show, p_tier, v_qty, p_name, p_email, p_phone, nullif(p_org, ''), (v_price - v_discount) * v_qty, v_until,
+          (select coalesce(t.price_presale <> t.price_normal and v_price = t.price_presale, false)
+             from public.tiers t where t.tier = p_tier),
+          p_client, v_ref, v_ref is not null, v_discount)
+  returning id into v_id;
+
+  with claimed as (
+    update public.seats
+       set order_id = v_id, held_until = v_until
+     where show_id = p_show
+       and seat_id = any (p_seats)
+       and tier = p_tier
+       and not blocked
+       and (order_id is null or held_until < now())
+    returning seat_id
+  )
+  select coalesce(array_agg(seat_id), '{}') into v_got from claimed;
+
+  if cardinality(v_got) <> v_qty then
+    v_lost := array(select s from unnest(p_seats) s where s <> all (v_got) order by s);
+    raise exception 'SEATS_TAKEN' using detail = array_to_string(v_lost, ',');
+  end if;
+
+  return query select v_id, v_until, (v_price - v_discount) * v_qty;
+end;
+$$;
+revoke all on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text, text) from public, anon, authenticated;
+grant execute on function public.hold_seats(smallint, text, text[], text, text, text, text, uuid, text, text) to service_role;
+
+-- Same as step 6, plus a final referral / price check. The hold is still the snapshot the buyer saw, but a
+-- code that died (or a price mode that changed) between hold and payment is rejected instead of silently honoured.
+-- Errors: INVALID_METHOD, ORDER_NOT_FOUND, ORDER_NOT_HELD, HOLD_EXPIRED, REFERRAL_INVALID, PRICE_CHANGED, PRICE_NOT_SET.
+create or replace function public.submit_order(p_order uuid, p_method text, p_proof_path text)
+returns table (code text, paid_at timestamptz)
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_order    public.orders;
+  v_tier     text;
+  v_ref      text;
+  v_ref_ok   boolean;
+  v_ref_max  int;
+  v_price    int;
+  v_discount int;
+  v_held     int;
+  v_code     text;
+  v_bytes    bytea;
+  v_alpha constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; -- 32 chars, no I/O/0/1
+begin
+  if p_method is null or p_method not in ('qris', 'transfer') or coalesce(p_proof_path, '') = '' then
+    raise exception 'INVALID_METHOD';
+  end if;
+
+  -- Same lock order as hold_seats (ticket category → referral code → order → seats), so a payment, a new hold and
+  -- an admin deactivation of the same code can't deadlock or both pass the max_uses check.
+  select o.tier, o.referral_code into v_tier, v_ref from public.orders o where o.id = p_order;
+  if not found then
+    raise exception 'ORDER_NOT_FOUND';
+  end if;
+  perform 1 from public.tiers where tier = v_tier for update;
+
+  if v_ref is not null then
+    select r.is_active, r.max_uses into v_ref_ok, v_ref_max
+      from public.referral_codes r where r.code = v_ref for update;
+    if not found or v_ref_ok is not true then
+      raise exception 'REFERRAL_INVALID';
+    end if;
+    if v_ref_max is not null
+       and (select count(*) from public.orders o
+             where o.referral_code = v_ref and o.status = 'valid') >= v_ref_max then
+      raise exception 'REFERRAL_INVALID';
+    end if;
+  end if;
+
+  select * into v_order from public.orders where id = p_order for update;
+  if not found then
+    raise exception 'ORDER_NOT_FOUND';
+  end if;
+  if v_order.status <> 'held' then
+    raise exception 'ORDER_NOT_HELD';
+  end if;
+  -- clock_timestamp, not now(): now() is when this call started, before any wait for the locks above.
+  if v_order.held_until is null or v_order.held_until <= clock_timestamp() then
+    raise exception 'HOLD_EXPIRED';
+  end if;
+  -- Every seat must still belong to this order (lock them so nobody takes them mid-way).
+  select count(*) into v_held
+    from (select 1 from public.seats where order_id = p_order order by show_id, seat_id for update) s;
+  if v_held <> v_order.qty then
+    raise exception 'HOLD_EXPIRED';
+  end if;
+
+  -- The buyer pays the live price, not a price the client kept. If it moved, send them back to review it.
+  v_price := public.tier_price(v_order.tier);
+  if v_price is null then
+    raise exception 'PRICE_NOT_SET';
+  end if;
+  v_discount := case when v_order.referral_code is not null then v_order.discount_per_ticket else 0 end;
+  if greatest(0, v_price - v_discount) * v_order.qty <> v_order.total then
+    raise exception 'PRICE_CHANGED';
+  end if;
+
+  -- 5 random chars (gen_random_uuid is a strong RNG; byte % 32 is unbiased). Retry on collision.
+  for attempt in 1..10 loop
+    v_bytes := uuid_send(gen_random_uuid());
+    v_code := '';
+    for i in 0..4 loop
+      v_code := v_code || substr(v_alpha, get_byte(v_bytes, i) % 32 + 1, 1);
+    end loop;
+    begin
+      update public.orders set code = v_code where id = p_order;
+      exit;
+    exception when unique_violation then
+      v_code := null;
+    end;
+  end loop;
+  if v_code is null then
+    raise exception 'CODE_COLLISION';
+  end if;
+
+  update public.orders
+     set status = 'valid', method = p_method, proof_path = p_proof_path, paid_at = now(), held_until = null
+   where id = p_order;
+  update public.seats set held_until = null where order_id = p_order;
+
+  return query select v_code, now();
+end;
+$$;
+revoke all on function public.submit_order(uuid, text, text) from public, anon, authenticated;
+grant execute on function public.submit_order(uuid, text, text) to service_role;
+```
+
+Add a new code without a deploy (replace the code and label):
+
+```sql
+insert into public.referral_codes (code, label, max_uses)
+values ('KODEBARU', 'Nama Komunitas', null)
+on conflict (code) do update set label = excluded.label, max_uses = excluded.max_uses, is_active = true;
+```
+
+Or with the helper script (reads `.env.local`):
+
+```sh
+node --env-file=.env.local --experimental-strip-types scripts/add-referral-code.ts KODEBARU "Nama Komunitas" 100
+```
+
+Turn a code off without deleting its history: `update public.referral_codes set is_active = false where code = 'KODEBARU';`
 
 ---
 

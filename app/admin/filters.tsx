@@ -23,7 +23,7 @@ export function Filters({ q, show, cek, harga }: { q: string; show: string; cek:
       </div>
       <Select name="show" label="Show" value={show} options={[["", "Semua show"], ["1", "Show 1"], ["2", "Show 2"]]} />
       <Select name="cek" label="Cek admin" value={cek} options={[["", "Semua"], ["belum", "Belum dicek"], ["valid", "Valid"], ["tidak", "Tidak valid"]]} />
-      <Select name="harga" label="Harga" value={harga} options={[["", "Semua"], ["presale", "Presale"], ["normal", "Normal"]]} />
+      <Select name="harga" label="Harga" value={harga} options={[["", "Semua"], ["presale", "Presale"], ["normal", "Normal"], ["referral", "Referral"]]} />
       <div className="flex items-center gap-3 md:col-span-2 xl:col-span-1">
         <Button flat type="submit">Terapkan</Button>
         <Link href="/admin" className="type-label inline-flex min-h-11 items-center px-3 text-text-brand underline">Reset</Link>

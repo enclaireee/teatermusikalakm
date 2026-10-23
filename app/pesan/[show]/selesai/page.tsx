@@ -34,6 +34,7 @@ export default function SelesaiPage() {
     ["Show", `${SHOWS[show].label} · ${EVENT.dateShort} · ${SHOWS[show].start} WIB`],
     ["Kursi", `${seats.join(", ")}${tier ? ` (${tier} · ${TIERS[tier].title})` : ""}`],
     ["Total", total],
+    ...(booking.referralCode ? [["Kode referral", booking.referralCode] as [string, string]] : []),
   ];
 
   async function download() {

@@ -10,6 +10,7 @@ import { RevealText } from "@/components/site/reveal-text";
 import { Alert } from "@/components/ui/alert";
 import { useBooking } from "@/lib/booking";
 import { EVENT, HOLD_MINUTES, SHOWS, TIERS } from "@/lib/event";
+import { referralPrice } from "@/lib/referral";
 import { useAvailability } from "@/lib/use-availability";
 
 export default function KursiPage() {
@@ -37,13 +38,31 @@ function Kursi() {
     setError(undefined);
     startTransition(async () => {
       try {
-        const r = await holdSeats({ show, tier, seats, buyer, prevOrderId: booking.orderId });
+        const r = await holdSeats({ show, tier, seats, buyer, referralCode: booking.referralCode, prevOrderId: booking.orderId });
         if (r.ok) {
-          const price = r.total / seats.length;
-          update({ orderId: r.orderId, heldSeats: seats, holdUntil: r.heldUntil, total: r.total, price, priceChanged: booking.price !== null && price !== booking.price });
+          const unit = r.total / seats.length;
+          const expected = referralPrice(booking.price, booking.referralDiscount);
+          update({ orderId: r.orderId, heldSeats: seats, holdUntil: r.heldUntil, total: r.total, priceChanged: expected !== null && unit !== expected });
           router.push(stepHref(show, 4));
         } else {
           setError(r.error);
+          if (r.referralInvalid) {
+            // The code stopped working between step 1 and here. Keep the old orderId so the next hold
+            // releases it, drop the stale seats, and send the buyer back to step 1 at the normal price.
+            update({
+              referralCode: null,
+              referralLabel: null,
+              referralDiscount: 0,
+              notice: r.error,
+              seats: [],
+              heldSeats: [],
+              holdUntil: null,
+              total: null,
+              priceChanged: false,
+            });
+            router.push(stepHref(show, 1));
+            return;
+          }
           // a failed hold rolls back in SQL, so the previous hold (heldSeats) is still ours: keep it out of "taken"
           if (r.lost?.length) update({ seats: seats.filter((s) => !r.lost!.includes(s)), holdUntil: null, total: null });
           avail.refresh();

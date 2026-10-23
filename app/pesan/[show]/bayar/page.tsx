@@ -103,6 +103,19 @@ export default function BayarPage() {
         if (r.ok) {
           update({ code: r.code, paidAt: r.paidAt });
           router.push(stepHref(show, 5));
+        } else if (r.reset) {
+          // The server refused a stale total or a dead referral code. Start again from step 1, where the
+          // live price is shown; keep orderId so the next hold releases this one.
+          update({
+            seats: [],
+            heldSeats: [],
+            holdUntil: null,
+            total: null,
+            priceChanged: false,
+            notice: r.error,
+            ...(r.reset === "referral" ? { referralCode: null, referralLabel: null, referralDiscount: 0 } : {}),
+          });
+          router.push(stepHref(show, 1));
         } else setSubmitError(r.error);
       } catch {
         setSubmitError("Koneksi bermasalah atau file terlalu besar. Coba lagi ya.");
